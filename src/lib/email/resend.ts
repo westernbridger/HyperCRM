@@ -1,0 +1,71 @@
+import { Resend } from 'resend'
+
+// Lazily instantiate so the app doesn't crash if the key is missing in dev.
+let _resend: Resend | null = null
+
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY
+  if (!key) return null
+  if (!_resend) _resend = new Resend(key)
+  return _resend
+}
+
+// The "from" address. Must be a verified domain in Resend.
+// Falls back to Resend's shared onboarding sender for quick testing.
+const FROM_ADDRESS =
+  process.env.RESEND_FROM_EMAIL || 'HyperCRM <onboarding@resend.dev>'
+
+export interface SendEmailParams {
+  to: string
+  subject: string
+  html: string
+}
+
+export interface SendEmailResult {
+  sent: boolean
+  error: string | null
+}
+
+/**
+ * Sends an email via Resend.
+ * If RESEND_API_KEY is not configured, the email content is logged to the
+ * console instead (development fallback) and `sent` is returned as false.
+ */
+export async function sendEmail({
+  to,
+  subject,
+  html,
+}: SendEmailParams): Promise<SendEmailResult> {
+  const resend = getResend()
+
+  if (!resend) {
+    console.warn(
+      '[email] RESEND_API_KEY not set — logging email instead of sending.'
+    )
+    console.log('📧 EMAIL (not sent)')
+    console.log('To:', to)
+    console.log('Subject:', subject)
+    console.log('HTML:', html)
+    return { sent: false, error: 'RESEND_API_KEY not configured' }
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject,
+      html,
+    })
+
+    if (error) {
+      console.error('[email] Resend error:', error)
+      return { sent: false, error: error.message }
+    }
+
+    return { sent: true, error: null }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown email error'
+    console.error('[email] Exception sending email:', message)
+    return { sent: false, error: message }
+  }
+}
