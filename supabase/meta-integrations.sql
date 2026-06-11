@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS meta_integrations (
 ALTER TABLE meta_integrations ENABLE ROW LEVEL SECURITY;
 
 -- Any workspace member can read the integration config (needed to show connected status)
+DROP POLICY IF EXISTS "members_read_meta_integrations" ON meta_integrations;
 CREATE POLICY "members_read_meta_integrations"
   ON meta_integrations FOR SELECT
   USING (
@@ -28,6 +29,7 @@ CREATE POLICY "members_read_meta_integrations"
   );
 
 -- Only MASTER / ADMIN can insert, update, or delete integration records
+DROP POLICY IF EXISTS "admins_manage_meta_integrations" ON meta_integrations;
 CREATE POLICY "admins_manage_meta_integrations"
   ON meta_integrations FOR ALL
   USING (
