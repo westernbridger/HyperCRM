@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Target, TrendingUp, Users, Globe } from "lucide-react";
 import { MetricTile } from "@/components/dashboard/metric-tile";
 import { PipelineBoard } from "@/components/leads/pipeline-board";
