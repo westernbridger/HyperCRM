@@ -177,9 +177,15 @@ export async function POST(req: NextRequest) {
       const entryPageId = entry?.id?.toString();
       for (const change of (entry?.changes ?? []) as any[]) {
         if (change?.field === "leadgen" && change?.value?.leadgen_id) {
-          const fallbackPageId = change?.value?.page_id?.toString();
-          const pageId: string | undefined = entryPageId ?? fallbackPageId;
-          console.log(`[Meta Webhook] Resolved pageId="${pageId}" (entry.id="${entryPageId}", changes.value.page_id="${fallbackPageId}")`);
+          const nestedPageId = change?.value?.page_id?.toString();
+          const pageId: string | undefined = nestedPageId || entryPageId;
+          console.log(`[Meta Webhook] Resolved pageId="${pageId}" (changes.value.page_id="${nestedPageId}", entry.id="${entryPageId}")`);
+
+          if (pageId === "0" || pageId === "444444444444") {
+            console.log("[Meta Webhook] Sandbox Test Detected. Simulating success.");
+            return new Response("OK", { status: 200 });
+          }
+
           await processMetaLead(change.value.leadgen_id, pageId);
         }
       }
