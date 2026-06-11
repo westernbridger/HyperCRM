@@ -170,11 +170,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    console.log("[Meta Webhook Inbound Payload]", JSON.stringify(body, null, 2));
+
     const entries: any[] = body?.entry ?? [];
     for (const entry of entries) {
-      const pageId: string | undefined = entry?.id;
+      const entryPageId = entry?.id?.toString();
       for (const change of (entry?.changes ?? []) as any[]) {
         if (change?.field === "leadgen" && change?.value?.leadgen_id) {
+          const fallbackPageId = change?.value?.page_id?.toString();
+          const pageId: string | undefined = entryPageId ?? fallbackPageId;
+          console.log(`[Meta Webhook] Resolved pageId="${pageId}" (entry.id="${entryPageId}", changes.value.page_id="${fallbackPageId}")`);
           await processMetaLead(change.value.leadgen_id, pageId);
         }
       }
