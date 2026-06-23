@@ -1,10 +1,26 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  typescript: {
-    // database.types.ts is stale — regenerate with `supabase gen types` to remove this.
-    // All runtime behaviour is correct; this only suppresses build-time type errors.
-    ignoreBuildErrors: true,
+  experimental: {
+    serverActions: {
+      // Form asset uploads (logo/cover/background) allow up to 5MB images;
+      // add headroom for multipart encoding overhead.
+      bodySizeLimit: "6mb",
+    },
+  },
+  async headers() {
+    return [
+      {
+        // Allow the embeddable form route to be framed on any external site.
+        source: "/forms/:formId/embed",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors *;",
+          },
+        ],
+      },
+    ];
   },
 };
 

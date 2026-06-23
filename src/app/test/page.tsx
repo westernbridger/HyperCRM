@@ -63,7 +63,13 @@ export default function TestPage() {
   }
 
   async function createTestContact() {
-    const { data, error } = await supabase.from("contacts").insert({
+    const workspaceId = user?.user_metadata?.current_workspace_id as string | undefined;
+    if (!workspaceId) {
+      alert("No current workspace selected for this user.");
+      return;
+    }
+    const { error } = await supabase.from("contacts").insert({
+      workspace_id: workspaceId,
       first_name: "John",
       last_name: "Doe",
       email: `john${Date.now()}@example.com`,

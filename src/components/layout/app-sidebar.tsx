@@ -123,11 +123,10 @@ function SidebarContent() {
           // Try to create the user record
           const { error: insertError } = await supabase
             .from("users")
-            // @ts-ignore - Database types are correct, IDE type resolution issue
             .insert({
-              // @ts-ignore
               id: authUser.id,
-              email: authUser.email,
+              email: authUser.email || "",
+              workspace_id: currentWorkspaceId || "",
               first_name: metadata.first_name || null,
               last_name: metadata.last_name || null,
             });
@@ -325,6 +324,10 @@ function SidebarContent() {
 
 export function AppSidebar() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Hide sidebar on public-facing routes (form fill pages)
+  if (pathname.startsWith("/forms/")) return null;
 
   return (
     <>

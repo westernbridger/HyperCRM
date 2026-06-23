@@ -1,28 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Target, TrendingUp, Users, Globe, Loader2 } from "lucide-react";
 import { MetricTile } from "@/components/dashboard/metric-tile";
 import { PipelineBoard } from "@/components/leads/pipeline-board";
-import { getContacts, type Contact } from "@/app/actions/contacts";
+import { useContacts } from "@/hooks/use-contacts";
 
 export default function LeadsPage() {
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getContacts().then(({ data }) => {
-      setContacts(data ?? []);
-      setLoading(false);
-    });
-  }, []);
+  const { data: contacts = [], isLoading } = useContacts();
 
   const newLeads  = contacts.filter((c) => c.status === "Lead").length;
   const prospects = contacts.filter((c) => c.status === "Prospect").length;
   const customers = contacts.filter((c) => c.status === "Customer").length;
   const metaLeads = contacts.filter((c) => c.custom_fields?.meta_form_id).length;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />

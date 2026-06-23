@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -29,8 +29,8 @@ import {
   Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { updateContact } from "@/app/actions/contacts";
 import type { Contact } from "@/app/actions/contacts";
+import { useUpdateContact } from "@/hooks/use-contacts";
 
 // ── Column definitions ────────────────────────────────────
 
@@ -269,7 +269,14 @@ export function PipelineBoard({ initialContacts }: { initialContacts: Contact[] 
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const updateContactMutation = useUpdateContact();
+  const isPending = updateContactMutation.isPending;
+
+  // Keep the local board state in sync when the underlying query cache
+  // refreshes (e.g. after a mutation settles or a background refetch).
+  useEffect(() => {
+    setContacts(initialContacts);
+  }, [initialContacts]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -321,23 +328,25 @@ export function PipelineBoard({ initialContacts }: { initialContacts: Contact[] 
 
     if (groupBy === "status") {
       const newStatus = targetCol as Contact["status"];
-      // Optimistic
+      // Optimistic local update for snappy DnD; rollback handled below.
       setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, status: newStatus } : c)));
-      startTransition(async () => {
-        const { error } = await updateContact(id, { status: newStatus }, contact.status);
-        if (error) {
-          setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, status: contact.status } : c)));
+      updateContactMutation.mutate(
+        { id, input: { status: newStatus }, previousStatus: contact.status },
+        {
+          onError: () =>
+            setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, status: contact.status } : c))),
         }
-      });
+      );
     } else {
       const merged = { ...contact.custom_fields, campaign_name: targetCol };
       setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, custom_fields: merged } : c)));
-      startTransition(async () => {
-        const { error } = await updateContact(id, { custom_fields: merged });
-        if (error) {
-          setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, custom_fields: contact.custom_fields } : c)));
+      updateContactMutation.mutate(
+        { id, input: { custom_fields: merged } },
+        {
+          onError: () =>
+            setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, custom_fields: contact.custom_fields } : c))),
         }
-      });
+      );
     }
   }
 
