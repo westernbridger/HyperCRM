@@ -219,13 +219,12 @@ export function RichTextEditor({
         {/* Variable inserter */}
         <DropdownMenu>
           <DropdownMenuTrigger>
-            <button
-              type="button"
-              className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+            <span
+              className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer"
             >
               Insert Variable
               <ChevronDown className="h-3 w-3" />
-            </button>
+            </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             {TEMPLATE_VARIABLES.map((group) => (

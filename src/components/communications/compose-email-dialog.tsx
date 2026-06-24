@@ -120,13 +120,12 @@ export function ComposeEmailDialog({
                 <Label htmlFor="email-subject" className="text-xs">Subject</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger>
-                    <button
-                      type="button"
-                      className="flex items-center gap-0.5 text-[11px] font-medium text-indigo-400 hover:text-indigo-300"
+                    <span
+                      className="flex items-center gap-0.5 text-[11px] font-medium text-indigo-400 hover:text-indigo-300 cursor-pointer"
                     >
                       Insert Variable
                       <ChevronDown className="h-3 w-3" />
-                    </button>
+                    </span>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     {TEMPLATE_VARIABLES.map((group) => (
