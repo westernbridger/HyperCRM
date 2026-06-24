@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email/resend'
 import { getSignatureHtml } from '@/app/actions/email-signature'
+import { resolveTemplate } from '@/lib/email/liquid'
 import { revalidatePath } from 'next/cache'
 import type {
   MessageChannel,
@@ -96,32 +97,69 @@ function textToHtml(text: string): string {
   return `<div style="font-family:ui-sans-serif,system-ui,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;">${withBreaks}</div>`
 }
 
+// Strip HTML tags to produce a plain-text fallback.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim()
+}
+
 // ── Send an email to a contact ───────────────────────────────────────────────
 
 export async function sendContactEmail(input: {
   contactId: string
   subject: string
   body: string
+  bodyHtml?: boolean
   conversationId?: string
 }): Promise<{ messageId: string | null; error: string | null }> {
   const { supabase, workspaceId, userId } = await getContext()
   if (!workspaceId) return { messageId: null, error: 'No workspace selected' }
 
-  const subject = input.subject.trim()
-  const body = input.body.trim()
-  if (!subject) return { messageId: null, error: 'Subject is required' }
-  if (!body) return { messageId: null, error: 'Message body is required' }
+  const subjectRaw = input.subject.trim()
+  const bodyRaw = input.body.trim()
+  if (!subjectRaw) return { messageId: null, error: 'Subject is required' }
+  if (!bodyRaw) return { messageId: null, error: 'Message body is required' }
 
   // 1. Load the contact (must belong to this workspace).
   const { data: contact, error: contactErr } = await supabase
     .from('contacts')
-    .select('id, first_name, last_name, email')
+    .select('id, first_name, last_name, email, phone, company, status, custom_fields')
     .eq('id', input.contactId)
     .eq('workspace_id', workspaceId)
-    .single<{ id: string; first_name: string; last_name: string; email: string }>()
+    .single<{ id: string; first_name: string; last_name: string; email: string; phone: string | null; company: string | null; status: string; custom_fields: Record<string, any> }>()
 
   if (contactErr || !contact) return { messageId: null, error: 'Contact not found' }
   if (!contact.email) return { messageId: null, error: 'This contact has no email address' }
+
+  // 1b. Load workspace name for liquid templating.
+  const { data: ws } = await supabase
+    .from('workspaces')
+    .select('name')
+    .eq('id', workspaceId)
+    .single<{ name: string }>()
+
+  // 1c. Resolve liquid templates.
+  const tplCtx = {
+    contact: {
+      first_name: contact.first_name,
+      last_name: contact.last_name,
+      email: contact.email,
+      phone: contact.phone,
+      company: contact.company,
+      status: contact.status,
+      custom_fields: contact.custom_fields ?? {},
+    },
+    workspace: { name: ws?.name ?? '' },
+  }
+  const subject = resolveTemplate(subjectRaw, tplCtx)
+  const bodyContent = resolveTemplate(bodyRaw, tplCtx)
 
   // 2. Resolve or create the conversation thread.
   let conversationId = input.conversationId ?? null
@@ -163,9 +201,11 @@ export async function sendContactEmail(input: {
   const fromAddr = await resolveWorkspaceSender(supabase, workspaceId)
 
   // 4. Insert the outbound message in a "queued" state.
-  const bodyHtml = textToHtml(body)
+  const isHtml = input.bodyHtml === true
+  const bodyHtmlContent = isHtml ? bodyContent : textToHtml(bodyContent)
+  const bodyTextContent = isHtml ? htmlToText(bodyContent) : bodyContent
   const signatureHtml = await getSignatureHtml(supabase, workspaceId)
-  const html = signatureHtml ? `${bodyHtml}${signatureHtml}` : bodyHtml
+  const html = signatureHtml ? `${bodyHtmlContent}${signatureHtml}` : bodyHtmlContent
   const { data: message, error: msgErr } = await supabase
     .from('messages')
     .insert({
@@ -178,7 +218,7 @@ export async function sendContactEmail(input: {
       to_addr: contact.email,
       subject,
       body_html: html,
-      body_text: body,
+      body_text: bodyTextContent,
       provider: 'resend',
       status: 'queued',
       created_by: userId,
@@ -218,7 +258,7 @@ export async function sendContactEmail(input: {
     workspace_id: workspaceId,
     type: 'email',
     title: sent ? `Email sent: ${subject}` : `Email failed: ${subject}`,
-    content: body,
+    content: bodyTextContent,
     metadata: { conversation_id: conversationId, message_id: message.id, sent },
     created_by: userId,
   })
@@ -338,4 +378,305 @@ export async function getCommunicationStats(): Promise<{
   const openRate = delivered > 0 ? Math.round((opened / delivered) * 1000) / 10 : 0
 
   return { emailsSent, delivered, opened, openRate }
+}
+
+// ── Broadcast types ───────────────────────────────────────────────────────────
+
+export type BroadcastListItem = {
+  id: string
+  subject: string
+  recipient_count: number
+  sent_count: number
+  failed_count: number
+  status: string
+  created_at: string
+}
+
+export type BroadcastRecipientItem = {
+  id: string
+  contact_id: string
+  contact_name: string
+  contact_email: string
+  status: string
+  error: string | null
+  sent_at: string | null
+}
+
+// ── Send a broadcast email to multiple contacts ──────────────────────────────
+
+export async function sendBroadcastEmail(input: {
+  subject: string
+  bodyHtml: string
+  contactIds: string[]
+}): Promise<{
+  broadcastId: string | null
+  sentCount: number
+  failedCount: number
+  error: string | null
+}> {
+  const { supabase, workspaceId, userId } = await getContext()
+  if (!workspaceId) return { broadcastId: null, sentCount: 0, failedCount: 0, error: 'No workspace selected' }
+
+  const subjectRaw = input.subject.trim()
+  const bodyRaw = input.bodyHtml.trim()
+  if (!subjectRaw) return { broadcastId: null, sentCount: 0, failedCount: 0, error: 'Subject is required' }
+  if (!bodyRaw) return { broadcastId: null, sentCount: 0, failedCount: 0, error: 'Message body is required' }
+  if (input.contactIds.length === 0) return { broadcastId: null, sentCount: 0, failedCount: 0, error: 'At least one recipient is required' }
+
+  // 1. Load workspace name for liquid templating.
+  const { data: ws } = await supabase
+    .from('workspaces')
+    .select('name')
+    .eq('id', workspaceId)
+    .single<{ name: string }>()
+
+  // 2. Load all contacts in one query.
+  const { data: contacts } = await supabase
+    .from('contacts')
+    .select('id, first_name, last_name, email, phone, company, status, custom_fields')
+    .in('id', input.contactIds)
+    .eq('workspace_id', workspaceId)
+
+  const validContacts = (contacts ?? []).filter((c: any) => c.email)
+  if (validContacts.length === 0) {
+    return { broadcastId: null, sentCount: 0, failedCount: 0, error: 'No contacts with valid email addresses' }
+  }
+
+  // 3. Create the broadcast record.
+  const bodyTextContent = htmlToText(bodyRaw)
+  const { data: broadcast, error: broadcastErr } = await supabase
+    .from('broadcasts')
+    .insert({
+      workspace_id: workspaceId,
+      subject: subjectRaw,
+      body_html: bodyRaw,
+      body_text: bodyTextContent,
+      recipient_count: validContacts.length,
+      status: 'sending',
+      created_by: userId,
+    })
+    .select('id')
+    .single<{ id: string }>()
+
+  if (broadcastErr || !broadcast) {
+    return { broadcastId: null, sentCount: 0, failedCount: 0, error: broadcastErr?.message ?? 'Failed to create broadcast' }
+  }
+
+  // 4. Insert all recipient rows.
+  const recipientRows = validContacts.map((c: any) => ({
+    broadcast_id: broadcast.id,
+    workspace_id: workspaceId,
+    contact_id: c.id,
+    status: 'pending' as const,
+  }))
+
+  await supabase.from('broadcast_recipients').insert(recipientRows)
+
+  // 5. Resolve sender + signature.
+  const fromAddr = await resolveWorkspaceSender(supabase, workspaceId)
+  const signatureHtml = await getSignatureHtml(supabase, workspaceId)
+  const htmlWithSig = signatureHtml ? `${bodyRaw}${signatureHtml}` : bodyRaw
+
+  // 6. Send to each recipient (batched).
+  let sentCount = 0
+  let failedCount = 0
+  const BATCH_SIZE = 50
+
+  for (let i = 0; i < validContacts.length; i++) {
+    const contact = validContacts[i] as any
+
+    // Resolve liquid templates per-recipient.
+    const tplCtx = {
+      contact: {
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+        email: contact.email,
+        phone: contact.phone,
+        company: contact.company,
+        status: contact.status,
+        custom_fields: contact.custom_fields ?? {},
+      },
+      workspace: { name: ws?.name ?? '' },
+    }
+    const subject = resolveTemplate(subjectRaw, tplCtx)
+    const personalizedHtml = resolveTemplate(htmlWithSig, tplCtx)
+    const personalizedText = resolveTemplate(bodyTextContent, tplCtx)
+
+    // Find or create conversation.
+    const { data: existingConv } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('contact_id', contact.id)
+      .eq('channel', 'email')
+      .eq('status', 'open')
+      .order('last_message_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>()
+
+    let conversationId = existingConv?.id ?? null
+    if (!conversationId) {
+      const { data: newConv } = await supabase
+        .from('conversations')
+        .insert({
+          workspace_id: workspaceId,
+          contact_id: contact.id,
+          channel: 'email',
+          subject,
+          created_by: userId,
+        })
+        .select('id')
+        .single<{ id: string }>()
+      conversationId = newConv?.id ?? null
+    }
+
+    if (!conversationId) {
+      failedCount++
+      continue
+    }
+
+    // Insert message.
+    const { data: msg } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        workspace_id: workspaceId,
+        contact_id: contact.id,
+        channel: 'email',
+        direction: 'outbound',
+        from_addr: fromAddr,
+        to_addr: contact.email,
+        subject,
+        body_html: personalizedHtml,
+        body_text: personalizedText,
+        provider: 'resend',
+        status: 'queued',
+        created_by: userId,
+      })
+      .select('id')
+      .single<{ id: string }>()
+
+    // Send via Resend.
+    const { sent, error: sendError } = await sendEmail({
+      to: contact.email,
+      subject,
+      html: personalizedHtml,
+      from: fromAddr ?? undefined,
+    })
+
+    // Update message status.
+    if (msg) {
+      await supabase
+        .from('messages')
+        .update({
+          status: sent ? 'sent' : 'failed',
+          error: sent ? null : sendError,
+        })
+        .eq('id', msg.id)
+    }
+
+    // Update conversation timestamp.
+    await supabase
+      .from('conversations')
+      .update({ last_message_at: new Date().toISOString(), subject })
+      .eq('id', conversationId)
+
+    // Update recipient status.
+    await supabase
+      .from('broadcast_recipients')
+      .update({
+        status: sent ? 'sent' : 'failed',
+        error: sent ? null : sendError,
+        sent_at: sent ? new Date().toISOString() : null,
+        message_id: msg?.id ?? null,
+      })
+      .eq('broadcast_id', broadcast.id)
+      .eq('contact_id', contact.id)
+
+    // Log activity.
+    await supabase.from('activities').insert({
+      contact_id: contact.id,
+      workspace_id: workspaceId,
+      type: 'email',
+      title: sent ? `Broadcast sent: ${subject}` : `Broadcast failed: ${subject}`,
+      content: personalizedText,
+      metadata: { broadcast_id: broadcast.id, message_id: msg?.id, sent },
+      created_by: userId,
+    })
+
+    if (sent) sentCount++
+    else failedCount++
+
+    // Small delay between batches to respect rate limits.
+    if ((i + 1) % BATCH_SIZE === 0 && i + 1 < validContacts.length) {
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
+
+  // 7. Update broadcast aggregate.
+  await supabase
+    .from('broadcasts')
+    .update({
+      sent_count: sentCount,
+      failed_count: failedCount,
+      status: failedCount === 0 ? 'sent' : sentCount === 0 ? 'partial_failure' : 'partial_failure',
+    })
+    .eq('id', broadcast.id)
+
+  revalidatePath('/communications')
+
+  return { broadcastId: broadcast.id, sentCount, failedCount, error: null }
+}
+
+// ── List broadcasts for the workspace ─────────────────────────────────────────
+
+export async function getBroadcasts(): Promise<{
+  data: BroadcastListItem[] | null
+  error: string | null
+}> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { data: null, error: 'No workspace selected' }
+
+  const { data, error } = await supabase
+    .from('broadcasts')
+    .select('id, subject, recipient_count, sent_count, failed_count, status, created_at')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) return { data: null, error: error.message }
+  return { data: (data as BroadcastListItem[]) ?? [], error: null }
+}
+
+// ── Get recipients for a specific broadcast ───────────────────────────────────
+
+export async function getBroadcastRecipients(
+  broadcastId: string
+): Promise<{
+  data: BroadcastRecipientItem[] | null
+  error: string | null
+}> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { data: null, error: 'No workspace selected' }
+
+  const { data, error } = await supabase
+    .from('broadcast_recipients')
+    .select('id, contact_id, status, error, sent_at, contacts ( first_name, last_name, email )')
+    .eq('broadcast_id', broadcastId)
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: true })
+
+  if (error) return { data: null, error: error.message }
+
+  const items: BroadcastRecipientItem[] = (data ?? []).map((r: any) => ({
+    id: r.id,
+    contact_id: r.contact_id,
+    contact_name: `${r.contacts?.first_name ?? ''} ${r.contacts?.last_name ?? ''}`.trim() || 'Unknown',
+    contact_email: r.contacts?.email ?? '',
+    status: r.status,
+    error: r.error,
+    sent_at: r.sent_at,
+  }))
+
+  return { data: items, error: null }
 }

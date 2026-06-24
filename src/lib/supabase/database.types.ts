@@ -131,6 +131,10 @@ export type MessageStatus =
   | 'failed'
   | 'received'
 
+export type BroadcastStatus = 'draft' | 'sending' | 'sent' | 'partial_failure'
+
+export type BroadcastRecipientStatus = 'pending' | 'sent' | 'failed'
+
 export type Database = {
   public: {
     Tables: {
@@ -713,6 +717,84 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      broadcasts: {
+        Row: {
+          id: string
+          workspace_id: string
+          subject: string
+          body_html: string
+          body_text: string
+          recipient_count: number
+          sent_count: number
+          failed_count: number
+          status: BroadcastStatus
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          subject: string
+          body_html: string
+          body_text?: string
+          recipient_count?: number
+          sent_count?: number
+          failed_count?: number
+          status?: BroadcastStatus
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          subject?: string
+          body_html?: string
+          body_text?: string
+          recipient_count?: number
+          sent_count?: number
+          failed_count?: number
+          status?: BroadcastStatus
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      broadcast_recipients: {
+        Row: {
+          id: string
+          broadcast_id: string
+          workspace_id: string
+          contact_id: string
+          message_id: string | null
+          status: BroadcastRecipientStatus
+          error: string | null
+          sent_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          broadcast_id: string
+          workspace_id: string
+          contact_id: string
+          message_id?: string | null
+          status?: BroadcastRecipientStatus
+          error?: string | null
+          sent_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          broadcast_id?: string
+          workspace_id?: string
+          contact_id?: string
+          message_id?: string | null
+          status?: BroadcastRecipientStatus
+          error?: string | null
+          sent_at?: string | null
+          created_at?: string
         }
         Relationships: []
       }

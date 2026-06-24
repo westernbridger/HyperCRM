@@ -10,18 +10,36 @@ import {
   CheckCheck,
   AlertCircle,
   Reply,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MetricTile } from "@/components/dashboard/metric-tile";
 import { ComposeEmailDialog } from "./compose-email-dialog";
+import { BroadcastDialog } from "./broadcast-dialog";
+import { BroadcastList } from "./broadcast-list";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getConversations,
   getConversationMessages,
   getCommunicationStats,
+  getBroadcasts,
   type ConversationListItem,
   type Message,
+  type BroadcastListItem,
 } from "@/app/actions/communications";
+import { getContacts } from "@/app/actions/contacts";
+import { getEmailSignature } from "@/app/actions/email-signature";
+import { renderSignatureHtml } from "@/lib/email/signature";
 import { cn } from "@/lib/utils";
+
+type ContactForBroadcast = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  company: string | null;
+  status: string;
+};
 
 type Stats = {
   emailsSent: number;
@@ -38,18 +56,53 @@ export function CommunicationsInbox() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcasts, setBroadcasts] = useState<BroadcastListItem[]>([]);
+  const [contacts, setContacts] = useState<ContactForBroadcast[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(true);
+  const [signatureHtml, setSignatureHtml] = useState("");
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [{ data }, s] = await Promise.all([getConversations(), getCommunicationStats()]);
+    const [{ data }, s, { data: broadcastData }] = await Promise.all([
+      getConversations(),
+      getCommunicationStats(),
+      getBroadcasts(),
+    ]);
     setConversations(data ?? []);
     setStats(s);
+    setBroadcasts(broadcastData ?? []);
     setLoading(false);
+  }, []);
+
+  const loadContacts = useCallback(async () => {
+    setContactsLoading(true);
+    const { data } = await getContacts();
+    if (data) {
+      setContacts(
+        data.map((c) => ({
+          id: c.id,
+          first_name: c.first_name,
+          last_name: c.last_name,
+          email: c.email,
+          company: c.company,
+          status: c.status,
+        }))
+      );
+    }
+    setContactsLoading(false);
+  }, []);
+
+  const loadSignature = useCallback(async () => {
+    const { data } = await getEmailSignature();
+    if (data) setSignatureHtml(renderSignatureHtml(data));
   }, []);
 
   useEffect(() => {
     loadAll();
-  }, [loadAll]);
+    loadContacts();
+    loadSignature();
+  }, [loadAll, loadContacts, loadSignature]);
 
   const openConversation = useCallback(async (c: ConversationListItem) => {
     setSelected(c);
@@ -71,19 +124,15 @@ export function CommunicationsInbox() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Communications</h1>
           <p className="text-sm text-muted-foreground">
-            Email conversations with your contacts, in one place.
+            Email conversations and broadcasts with your contacts.
           </p>
         </div>
         <Button
           className="gap-2"
-          onClick={() => {
-            if (selected) setComposeOpen(true);
-          }}
-          disabled={!selected}
-          title={selected ? "Reply to this conversation" : "Select a conversation to reply"}
+          onClick={() => setBroadcastOpen(true)}
         >
-          <Reply className="h-4 w-4" />
-          Reply
+          <Radio className="h-4 w-4" />
+          New Broadcast
         </Button>
       </div>
 
@@ -95,6 +144,24 @@ export function CommunicationsInbox() {
         <MetricTile title="Open Rate" value={`${stats.openRate}%`} change="Of delivered" icon={Send} />
       </div>
 
+      <Tabs defaultValue="inbox">
+        <TabsList className="bg-muted/50">
+          <TabsTrigger value="inbox" className="gap-2">
+            <Inbox className="h-4 w-4" />
+            Inbox
+          </TabsTrigger>
+          <TabsTrigger value="broadcasts" className="gap-2">
+            <Radio className="h-4 w-4" />
+            Broadcasts
+            {broadcasts.length > 0 && (
+              <span className="ml-1 rounded-full bg-indigo-500/20 px-1.5 text-[10px] font-medium text-indigo-300">
+                {broadcasts.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="inbox" className="mt-4">
       {/* Inbox */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 rounded-xl border border-border bg-card overflow-hidden min-h-[28rem]">
         {/* Conversation list */}
@@ -204,6 +271,26 @@ export function CommunicationsInbox() {
           onSent={handleSent}
         />
       )}
+        </TabsContent>
+
+        <TabsContent value="broadcasts" className="mt-4">
+          <BroadcastList
+            broadcasts={broadcasts}
+            loading={loading}
+            onRefresh={loadAll}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Broadcast dialog */}
+      <BroadcastDialog
+        open={broadcastOpen}
+        onOpenChange={setBroadcastOpen}
+        contacts={contacts}
+        contactsLoading={contactsLoading}
+        signatureHtml={signatureHtml}
+        onSent={loadAll}
+      />
     </div>
   );
 }
@@ -221,7 +308,14 @@ function MessageBubble({ message }: { message: Message }) {
         {message.subject && (
           <p className="text-xs font-semibold mb-1">{message.subject}</p>
         )}
-        <p className="text-sm whitespace-pre-wrap break-words">{message.body_text}</p>
+        {message.body_html ? (
+          <div
+            className="text-sm break-words [&_p]:my-1"
+            dangerouslySetInnerHTML={{ __html: message.body_html }}
+          />
+        ) : (
+          <p className="text-sm whitespace-pre-wrap break-words">{message.body_text}</p>
+        )}
         <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <span>{formatRelative(message.created_at)}</span>
           {outbound && <StatusBadge status={message.status} error={message.error} />}
