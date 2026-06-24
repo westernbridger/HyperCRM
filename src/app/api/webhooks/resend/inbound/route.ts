@@ -83,20 +83,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Resend's webhook only includes metadata — fetch the full body via API.
+    // The content may not be immediately available, so retry with backoff.
     const emailId = (body?.data ?? body)?.email_id;
     console.log('[Inbound Email] emailId:', emailId, '| hasApiKey:', !!env.resendApiKey, '| needsFetch:', !email.text || !email.html);
     if (emailId && env.resendApiKey && (!email.text || !email.html)) {
-      try {
-        const resend = new Resend(env.resendApiKey);
-        const result = await resend.emails.receiving.get(emailId);
-        console.log('[Inbound Email] Fetch result:', { hasData: !!result?.data, hasError: !!result?.error, error: result?.error, keys: result?.data ? Object.keys(result.data) : [] });
-        if (result?.data) {
-          email.text = result.data.text || email.text;
-          email.html = result.data.html || email.html;
-          console.log('[Inbound Email] After fetch — hasText:', !!email.text, 'hasHtml:', !!email.html);
+      const resend = new Resend(env.resendApiKey);
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await resend.emails.receiving.get(emailId);
+          console.log('[Inbound Email] Fetch attempt', attempt, ':', { hasData: !!result?.data, hasError: !!result?.error, error: result?.error?.message });
+          if (result?.data) {
+            email.text = result.data.text || email.text;
+            email.html = result.data.html || email.html;
+            console.log('[Inbound Email] After fetch — hasText:', !!email.text, 'hasHtml:', !!email.html);
+            break;
+          }
+          if (attempt < maxRetries) {
+            await new Promise((r) => setTimeout(r, 1000 * attempt));
+          }
+        } catch (fetchErr) {
+          console.error(`[Inbound Email] Fetch attempt ${attempt} failed:`, fetchErr);
+          if (attempt < maxRetries) {
+            await new Promise((r) => setTimeout(r, 1000 * attempt));
+          }
         }
-      } catch (fetchErr) {
-        console.error("[Inbound Email] Failed to fetch email content:", fetchErr);
       }
     }
 
@@ -209,6 +220,10 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Store the inbound message ───────────────────────────────────────────
+    // Fallback: if we couldn't fetch the body, store a placeholder.
+    if (!email.html && !email.text) {
+      email.text = '(Email content is being processed. It will appear shortly.)';
+    }
     console.log('[Inbound Email] Storing message in conversation:', conversation.id, '| body_html:', email.html ? `${email.html.length} chars` : 'NULL', '| body_text:', email.text ? `${email.text.length} chars` : 'NULL');
     const { error: msgErr } = await supabase.from("messages").insert({
       conversation_id: conversation.id,
