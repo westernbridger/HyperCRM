@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
+import { Resend } from "resend";
 
 // This endpoint receives parsed inbound emails from Resend's inbound service.
 // It is a SKELETON / reference implementation for the receiving architecture
@@ -34,9 +35,30 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    // Only process email.received events.
+    if (body?.type && body.type !== "email.received") {
+      return new NextResponse("OK", { status: 200 });
+    }
+
     const email = normalizeEmail(body) as ParsedInboundEmail;
     if (!email.from || !email.to.length) {
       return new NextResponse("Bad Request", { status: 400 });
+    }
+
+    // Resend's webhook only includes metadata — fetch the full body via API.
+    const emailId = (body?.data ?? body)?.email_id;
+    if (emailId && env.resendApiKey && (!email.text || !email.html)) {
+      try {
+        const resend = new Resend(env.resendApiKey);
+        const { data: fullEmail } = await resend.emails.receiving.get(emailId);
+        if (fullEmail) {
+          email.text = fullEmail.text || email.text;
+          email.html = fullEmail.html || email.html;
+        }
+      } catch (fetchErr) {
+        console.error("[Inbound Email] Failed to fetch email content:", fetchErr);
+      }
     }
 
     const supabase = createAdminClient();
@@ -160,15 +182,16 @@ export async function POST(req: NextRequest) {
 }
 
 function normalizeEmail(body: any): Partial<ParsedInboundEmail> {
-  // Resend inbound payload shape is roughly documented; adjust for the actual
-  // payload you receive from your provider.
+  // Resend "email.received" webhook payload:
+  // { type: "email.received", data: { from, to, subject, text, html, ... } }
+  const d = body?.data ?? body
   return {
-    from: body?.from || body?.from_email || "",
-    to: Array.isArray(body?.to) ? body.to : [body?.to].filter(Boolean),
-    subject: body?.subject || "",
-    text: body?.text || body?.text_body || "",
-    html: body?.html || body?.html_body || "",
-    messageId: body?.message_id || body?.MessageId || body?.id,
+    from: d?.from || "",
+    to: Array.isArray(d?.to) ? d.to : [d?.to].filter(Boolean),
+    subject: d?.subject || "",
+    text: d?.text || "",
+    html: d?.html || "",
+    messageId: d?.message_id || d?.email_id || d?.id,
   };
 }
 
