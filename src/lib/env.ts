@@ -14,6 +14,7 @@ type EnvKey =
   | "META_APP_SECRET"
   | "RESEND_API_KEY"
   | "RESEND_FROM_EMAIL"
+  | "RESEND_WEBHOOK_SECRET"
   | "CRON_SECRET"
   | "NEXT_PUBLIC_APP_URL";
 
@@ -52,6 +53,7 @@ export const env = {
   // Email — optional; features degrade gracefully if absent.
   resendApiKey: read("RESEND_API_KEY", { required: false }),
   resendFromEmail: read("RESEND_FROM_EMAIL", { required: false }),
+  resendWebhookSecret: read("RESEND_WEBHOOK_SECRET", { required: false }),
 
   appUrl: read("NEXT_PUBLIC_APP_URL", { required: false }) || "http://localhost:3000",
 } as const;

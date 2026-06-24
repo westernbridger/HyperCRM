@@ -3,7 +3,7 @@ import { Resend } from 'resend'
 // Lazily instantiate so the app doesn't crash if the key is missing in dev.
 let _resend: Resend | null = null
 
-function getResend(): Resend | null {
+export function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY
   if (!key) return null
   if (!_resend) _resend = new Resend(key)
@@ -19,6 +19,9 @@ export interface SendEmailParams {
   to: string
   subject: string
   html: string
+  // Optional verified sender, e.g. "Acme Sales <sales@acme.com>".
+  // Falls back to the configured/default FROM_ADDRESS when omitted.
+  from?: string
 }
 
 export interface SendEmailResult {
@@ -35,8 +38,10 @@ export async function sendEmail({
   to,
   subject,
   html,
+  from,
 }: SendEmailParams): Promise<SendEmailResult> {
   const resend = getResend()
+  const fromAddress = from || FROM_ADDRESS
 
   if (!resend) {
     console.warn(
@@ -51,7 +56,7 @@ export async function sendEmail({
 
   try {
     const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
+      from: fromAddress,
       to,
       subject,
       html,

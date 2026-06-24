@@ -72,6 +72,29 @@ export const DEFAULT_FORM_BRANDING: HyperFormBranding = {
   showBadge: true,
 }
 
+// ── Communications (email / SMS / WhatsApp) ─────────────────────────────────
+export type MessageChannel = 'email' | 'sms' | 'whatsapp'
+
+export type MessageDirection = 'outbound' | 'inbound'
+
+export type ConversationStatus = 'open' | 'closed'
+
+export type EmailDomainStatus =
+  | 'pending'
+  | 'verified'
+  | 'failed'
+  | 'temporary_failure'
+
+export type MessageStatus =
+  | 'queued'
+  | 'sent'
+  | 'delivered'
+  | 'opened'
+  | 'clicked'
+  | 'bounced'
+  | 'failed'
+  | 'received'
+
 export type Database = {
   public: {
     Tables: {
@@ -501,6 +524,156 @@ export type Database = {
           answers?: Record<string, any>
           status?: 'Lead' | 'Prospect' | 'Customer' | 'Churned'
           submitted_at?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          id: string
+          workspace_id: string
+          contact_id: string
+          channel: MessageChannel
+          subject: string | null
+          status: ConversationStatus
+          last_message_at: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          contact_id: string
+          channel?: MessageChannel
+          subject?: string | null
+          status?: ConversationStatus
+          last_message_at?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          contact_id?: string
+          channel?: MessageChannel
+          subject?: string | null
+          status?: ConversationStatus
+          last_message_at?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          workspace_id: string
+          contact_id: string | null
+          channel: MessageChannel
+          direction: MessageDirection
+          from_addr: string | null
+          to_addr: string | null
+          subject: string | null
+          body_html: string | null
+          body_text: string | null
+          provider: string | null
+          provider_message_id: string | null
+          status: MessageStatus
+          error: string | null
+          metadata: Record<string, any>
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          workspace_id: string
+          contact_id?: string | null
+          channel?: MessageChannel
+          direction: MessageDirection
+          from_addr?: string | null
+          to_addr?: string | null
+          subject?: string | null
+          body_html?: string | null
+          body_text?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
+          status?: MessageStatus
+          error?: string | null
+          metadata?: Record<string, any>
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          workspace_id?: string
+          contact_id?: string | null
+          channel?: MessageChannel
+          direction?: MessageDirection
+          from_addr?: string | null
+          to_addr?: string | null
+          subject?: string | null
+          body_html?: string | null
+          body_text?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
+          status?: MessageStatus
+          error?: string | null
+          metadata?: Record<string, any>
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      workspace_email_domains: {
+        Row: {
+          id: string
+          workspace_id: string
+          domain: string
+          resend_domain_id: string
+          region: string
+          from_name: string | null
+          from_email: string
+          status: EmailDomainStatus
+          dns_records: any[]
+          is_default: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          domain: string
+          resend_domain_id: string
+          region?: string
+          from_name?: string | null
+          from_email: string
+          status?: EmailDomainStatus
+          dns_records?: any[]
+          is_default?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          domain?: string
+          resend_domain_id?: string
+          region?: string
+          from_name?: string | null
+          from_email?: string
+          status?: EmailDomainStatus
+          dns_records?: any[]
+          is_default?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

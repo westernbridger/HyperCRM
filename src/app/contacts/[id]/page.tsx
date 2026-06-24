@@ -19,6 +19,7 @@ import {
   addActivity,
   updateContact,
 } from "@/lib/data/contacts";
+import { ComposeEmailDialog } from "@/components/communications/compose-email-dialog";
 
 const generateUUID = () =>
   "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -99,6 +100,9 @@ export default function ContactDetailPage() {
     status: "Lead",
   });
   const [editError, setEditError] = useState<string | null>(null);
+
+  // Compose email modal state
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
 
   // Add activity modal state
   const [isAddActivityOpen, setIsAddActivityOpen] = useState(false);
@@ -458,7 +462,7 @@ export default function ContactDetailPage() {
                 <Button 
                   variant="outline" 
                   className="w-full justify-start gap-2"
-                  onClick={() => window.location.href = `mailto:${contact.email}`}
+                  onClick={() => setIsComposeOpen(true)}
                 >
                   <Mail className="h-4 w-4" />
                   Send Email
@@ -550,6 +554,25 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Compose Email Dialog */}
+      <ComposeEmailDialog
+        open={isComposeOpen}
+        onOpenChange={setIsComposeOpen}
+        contact={{ id: contact.id, name: contact.name, email: contact.email }}
+        onSent={async () => {
+          const dbActivities = await getContactActivities(contact.id);
+          const uiActivities: ActivityItem[] = dbActivities.map((a: any) => ({
+            id: a.id,
+            type: a.type === "creation" ? "document" : a.type,
+            title: a.title,
+            description: a.content || "",
+            timestamp: a.created_at,
+            author: "You",
+          }));
+          setActivities(uiActivities);
+        }}
+      />
 
       {/* Add Activity Dialog */}
       <Dialog open={isAddActivityOpen} onOpenChange={setIsAddActivityOpen}>
