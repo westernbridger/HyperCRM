@@ -232,6 +232,7 @@ export async function sendContactEmail(input: {
   }
 
   // 5. Send via Resend, using the workspace sender when available.
+  console.log('[sendContactEmail] replyTo:', ws?.inbound_email ?? 'NONE', '| fromAddr:', fromAddr ?? 'DEFAULT')
   const { sent, error: sendError } = await sendEmail({
     to: contact.email,
     subject,
