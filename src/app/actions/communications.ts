@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email/resend'
+import { getSignatureHtml } from '@/app/actions/email-signature'
 import { revalidatePath } from 'next/cache'
 import type {
   MessageChannel,
@@ -162,7 +163,9 @@ export async function sendContactEmail(input: {
   const fromAddr = await resolveWorkspaceSender(supabase, workspaceId)
 
   // 4. Insert the outbound message in a "queued" state.
-  const html = textToHtml(body)
+  const bodyHtml = textToHtml(body)
+  const signatureHtml = await getSignatureHtml(supabase, workspaceId)
+  const html = signatureHtml ? `${bodyHtml}${signatureHtml}` : bodyHtml
   const { data: message, error: msgErr } = await supabase
     .from('messages')
     .insert({

@@ -72,6 +72,35 @@ export const DEFAULT_FORM_BRANDING: HyperFormBranding = {
   showBadge: true,
 }
 
+// ── Email signature ──────────────────────────────────────────────────────────
+export type SignatureStyle = 'minimal' | 'modern' | 'classic'
+
+export type EmailSignature = {
+  fullName: string
+  title: string
+  company: string
+  email: string
+  phone: string
+  website: string
+  linkedinUrl: string
+  twitterUrl: string
+  style: SignatureStyle
+  primaryColor: string
+}
+
+export const DEFAULT_EMAIL_SIGNATURE: EmailSignature = {
+  fullName: '',
+  title: '',
+  company: '',
+  email: '',
+  phone: '',
+  website: '',
+  linkedinUrl: '',
+  twitterUrl: '',
+  style: 'modern',
+  primaryColor: '#6366f1',
+}
+
 // ── Communications (email / SMS / WhatsApp) ─────────────────────────────────
 export type MessageChannel = 'email' | 'sms' | 'whatsapp'
 
@@ -103,6 +132,7 @@ export type Database = {
           id: string
           name: string
           slug: string
+          email_signature: Record<string, any>
           created_at: string
           updated_at: string
         }
@@ -110,6 +140,7 @@ export type Database = {
           id?: string
           name: string
           slug: string
+          email_signature?: Record<string, any>
           created_at?: string
           updated_at?: string
         }
@@ -117,6 +148,7 @@ export type Database = {
           id?: string
           name?: string
           slug?: string
+          email_signature?: Record<string, any>
           created_at?: string
           updated_at?: string
         }
