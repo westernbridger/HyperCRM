@@ -87,25 +87,32 @@ export async function POST(req: NextRequest) {
     const emailId = (body?.data ?? body)?.email_id;
     console.log('[Inbound Email] emailId:', emailId, '| hasApiKey:', !!env.resendApiKey, '| needsFetch:', !email.text || !email.html);
     if (emailId && env.resendApiKey && (!email.text || !email.html)) {
-      const resend = new Resend(env.resendApiKey);
       const maxRetries = 3;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          const result = await resend.emails.receiving.get(emailId);
-          console.log('[Inbound Email] Fetch attempt', attempt, ':', { hasData: !!result?.data, hasError: !!result?.error, error: result?.error?.message });
-          if (result?.data) {
-            email.text = result.data.text || email.text;
-            email.html = result.data.html || email.html;
+          // Use direct fetch instead of SDK to rule out SDK issues.
+          const response = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
+            headers: { Authorization: `Bearer ${env.resendApiKey}` },
+          });
+          console.log('[Inbound Email] Fetch attempt', attempt, ': status', response.status, response.statusText);
+          if (response.ok) {
+            const fullEmail = await response.json();
+            console.log('[Inbound Email] API response keys:', Object.keys(fullEmail));
+            email.text = fullEmail.text || email.text;
+            email.html = fullEmail.html || email.html;
             console.log('[Inbound Email] After fetch — hasText:', !!email.text, 'hasHtml:', !!email.html);
             break;
+          } else {
+            const errBody = await response.text();
+            console.log('[Inbound Email] API error body:', errBody);
           }
           if (attempt < maxRetries) {
-            await new Promise((r) => setTimeout(r, 1000 * attempt));
+            await new Promise((r) => setTimeout(r, 2000 * attempt));
           }
         } catch (fetchErr) {
           console.error(`[Inbound Email] Fetch attempt ${attempt} failed:`, fetchErr);
           if (attempt < maxRetries) {
-            await new Promise((r) => setTimeout(r, 1000 * attempt));
+            await new Promise((r) => setTimeout(r, 2000 * attempt));
           }
         }
       }
