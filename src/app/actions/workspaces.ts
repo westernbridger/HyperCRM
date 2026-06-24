@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { env } from '@/lib/env'
 
 // Helper type for inserts
 // @ts-ignore - IDE type resolution issue, runtime is correct
@@ -16,6 +17,14 @@ export type Workspace = {
   slug: string
   role: UserRole
   joined_at: string
+}
+
+// Generate a unique inbound email address for a workspace.
+// Format: ws_{short_uuid}@{RESEND_INBOUND_DOMAIN}
+function generateInboundEmail(): string {
+  const domain = env.resendInboundDomain || 'mail.hypercrm.ca'
+  const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+  return `ws_${shortId}@${domain}`
 }
 
 // ── GET USER'S WORKSPACES ────────────────────────────────────
@@ -73,7 +82,7 @@ export async function createWorkspace(
   const { data: workspace, error: wsError } = await supabase
     .from('workspaces')
     // @ts-ignore - Database types are correct, IDE type resolution issue
-    .insert({ name, slug })
+    .insert({ name, slug, inbound_email: generateInboundEmail() })
     .select('id, name, slug')
     .single<{ id: string; name: string; slug: string }>()
 

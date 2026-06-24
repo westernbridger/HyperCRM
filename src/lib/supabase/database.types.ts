@@ -144,6 +144,7 @@ export type Database = {
           name: string
           slug: string
           email_signature: Record<string, any>
+          inbound_email: string | null
           created_at: string
           updated_at: string
         }
@@ -152,6 +153,7 @@ export type Database = {
           name: string
           slug: string
           email_signature?: Record<string, any>
+          inbound_email?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -160,6 +162,7 @@ export type Database = {
           name?: string
           slug?: string
           email_signature?: Record<string, any>
+          inbound_email?: string | null
           created_at?: string
           updated_at?: string
         }

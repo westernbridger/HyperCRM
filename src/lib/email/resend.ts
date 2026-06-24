@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { env } from '@/lib/env'
 
 // Lazily instantiate so the app doesn't crash if the key is missing in dev.
 let _resend: Resend | null = null
@@ -10,10 +11,9 @@ export function getResend(): Resend | null {
   return _resend
 }
 
-// The "from" address. Must be a verified domain in Resend.
-// Falls back to Resend's shared onboarding sender for quick testing.
+// The "from" address. Falls back to RESEND_DEFAULT_FROM, then to Resend's shared sender.
 const FROM_ADDRESS =
-  process.env.RESEND_FROM_EMAIL || 'HyperCRM <onboarding@resend.dev>'
+  env.resendDefaultFrom || process.env.RESEND_FROM_EMAIL || 'HyperCRM <onboarding@resend.dev>'
 
 export interface SendEmailParams {
   to: string
@@ -22,6 +22,8 @@ export interface SendEmailParams {
   // Optional verified sender, e.g. "Acme Sales <sales@acme.com>".
   // Falls back to the configured/default FROM_ADDRESS when omitted.
   from?: string
+  // Optional reply-to address for inbound routing.
+  replyTo?: string
 }
 
 export interface SendEmailResult {
@@ -39,6 +41,7 @@ export async function sendEmail({
   subject,
   html,
   from,
+  replyTo,
 }: SendEmailParams): Promise<SendEmailResult> {
   const resend = getResend()
   const fromAddress = from || FROM_ADDRESS
@@ -61,6 +64,7 @@ export async function sendEmail({
       to,
       subject,
       html,
+      ...(replyTo ? { reply_to: replyTo } : {}),
     })
 
     if (error) {

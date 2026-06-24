@@ -2,6 +2,13 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { env } from '@/lib/env'
+
+function generateInboundEmail(): string {
+  const domain = env.resendInboundDomain || 'mail.hypercrm.ca'
+  const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+  return `ws_${shortId}@${domain}`
+}
 
 export type Contact = {
   id: string
@@ -86,7 +93,8 @@ async function ensureWorkspace(
   const workspaceSlug = `${emailPrefix}-${userId.slice(0, 8)}`
   const { data: workspace, error: wsError } = await supabase
     .from('workspaces')
-    .insert({ name: workspaceName, slug: workspaceSlug })
+    // @ts-ignore - inbound_email is a new column
+    .insert({ name: workspaceName, slug: workspaceSlug, inbound_email: generateInboundEmail() })
     .select('id')
     .single()
 

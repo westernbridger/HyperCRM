@@ -65,28 +65,47 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // ── Resolve the workspace by the receiving domain ───────────────────────
-    const receivingDomain = email.to[0].split("@")[1]?.toLowerCase();
-    console.log('[Inbound Email] Receiving domain:', receivingDomain);
-    if (!receivingDomain) {
-      return new NextResponse("No receiving domain", { status: 400 });
+    // ── Resolve the workspace ───────────────────────────────────────────────
+    // Strategy 1: Match by inbound_email (ws_xxx@mail.hypercrm.ca)
+    // Strategy 2: Fall back to workspace_email_domains lookup by domain
+    let workspaceId: string | null = null;
+
+    // Try matching the full to-address against workspaces.inbound_email
+    for (const toAddr of email.to) {
+      const { data: wsByInbound } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("inbound_email", toAddr.toLowerCase())
+        .maybeSingle<{ id: string }>();
+      if (wsByInbound) {
+        workspaceId = wsByInbound.id;
+        console.log('[Inbound Email] Resolved workspace by inbound_email:', toAddr);
+        break;
+      }
     }
 
-    const { data: domainRow, error: domainErr } = await supabase
-      .from("workspace_email_domains")
-      .select("workspace_id, domain, status")
-      .eq("domain", receivingDomain)
-      .eq("status", "verified")
-      .single<{ workspace_id: string; domain: string; status: string }>();
+    // Fallback: resolve by receiving domain in workspace_email_domains
+    if (!workspaceId) {
+      const receivingDomain = email.to[0].split("@")[1]?.toLowerCase();
+      console.log('[Inbound Email] Trying domain lookup:', receivingDomain);
+      if (receivingDomain) {
+        const { data: domainRow } = await supabase
+          .from("workspace_email_domains")
+          .select("workspace_id")
+          .eq("domain", receivingDomain)
+          .eq("status", "verified")
+          .maybeSingle<{ workspace_id: string }>();
+        if (domainRow) {
+          workspaceId = domainRow.workspace_id;
+          console.log('[Inbound Email] Resolved workspace by domain:', receivingDomain);
+        }
+      }
+    }
 
-    console.log('[Inbound Email] Domain lookup:', domainRow ? { workspace_id: domainRow.workspace_id, domain: domainRow.domain } : 'NOT FOUND', domainErr ? `error: ${domainErr.message}` : '');
-
-    if (!domainRow) {
-      // No workspace owns this receiving domain — drop the email silently.
-      console.log('[Inbound Email] Dropped: no workspace owns domain', receivingDomain);
+    if (!workspaceId) {
+      console.log('[Inbound Email] Dropped: could not resolve workspace for', email.to);
       return new NextResponse("OK", { status: 200 });
     }
-    const workspaceId = domainRow.workspace_id;
 
     // ── Resolve the contact by sender email ─────────────────────────────────
     const senderEmail = extractEmail(email.from);

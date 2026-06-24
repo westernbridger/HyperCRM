@@ -138,12 +138,12 @@ export async function sendContactEmail(input: {
   if (contactErr || !contact) return { messageId: null, error: 'Contact not found' }
   if (!contact.email) return { messageId: null, error: 'This contact has no email address' }
 
-  // 1b. Load workspace name for liquid templating.
+  // 1b. Load workspace name + inbound_email for liquid templating and reply-to.
   const { data: ws } = await supabase
     .from('workspaces')
-    .select('name')
+    .select('name, inbound_email')
     .eq('id', workspaceId)
-    .single<{ name: string }>()
+    .single<{ name: string; inbound_email: string | null }>()
 
   // 1c. Resolve liquid templates.
   const tplCtx = {
@@ -237,6 +237,7 @@ export async function sendContactEmail(input: {
     subject,
     html,
     from: fromAddr ?? undefined,
+    replyTo: ws?.inbound_email ?? undefined,
   })
 
   // 6. Update message + conversation with the outcome.
@@ -424,12 +425,12 @@ export async function sendBroadcastEmail(input: {
   if (!bodyRaw) return { broadcastId: null, sentCount: 0, failedCount: 0, error: 'Message body is required' }
   if (input.contactIds.length === 0) return { broadcastId: null, sentCount: 0, failedCount: 0, error: 'At least one recipient is required' }
 
-  // 1. Load workspace name for liquid templating.
+  // 1. Load workspace name + inbound_email for liquid templating and reply-to.
   const { data: ws } = await supabase
     .from('workspaces')
-    .select('name')
+    .select('name, inbound_email')
     .eq('id', workspaceId)
-    .single<{ name: string }>()
+    .single<{ name: string; inbound_email: string | null }>()
 
   // 2. Load all contacts in one query.
   const { data: contacts } = await supabase
@@ -563,6 +564,7 @@ export async function sendBroadcastEmail(input: {
       subject,
       html: personalizedHtml,
       from: fromAddr ?? undefined,
+      replyTo: ws?.inbound_email ?? undefined,
     })
 
     // Update message status.
