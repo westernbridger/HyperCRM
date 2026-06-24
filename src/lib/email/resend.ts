@@ -42,6 +42,7 @@ export async function sendEmail({
 }: SendEmailParams): Promise<SendEmailResult> {
   const resend = getResend()
   const fromAddress = from || FROM_ADDRESS
+  console.log('[email] fromAddress:', JSON.stringify(fromAddress), '| from:', JSON.stringify(from), '| FROM_ADDRESS:', JSON.stringify(FROM_ADDRESS))
 
   if (!resend) {
     console.warn(

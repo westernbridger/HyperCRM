@@ -199,6 +199,7 @@ export async function sendContactEmail(input: {
 
   // 3. Resolve the workspace's verified sender (falls back to shared sender).
   const fromAddr = await resolveWorkspaceSender(supabase, workspaceId)
+  console.log('[sendContactEmail] fromAddr:', JSON.stringify(fromAddr))
 
   // 4. Insert the outbound message in a "queued" state.
   const isHtml = input.bodyHtml === true
