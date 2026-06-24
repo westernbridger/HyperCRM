@@ -2,18 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { Resend } from "resend";
+import crypto from "crypto";
 
 // This endpoint receives parsed inbound emails from Resend's inbound service.
-// It is a SKELETON / reference implementation for the receiving architecture
-// described in the project docs. Before it is live, you must:
-//   1. Enable Resend inbound on your account/domain and point the inbound route
-//      to your domain's MX records (e.g. mx.resend.com).
-//   2. Configure the webhook URL in Resend: https://yourapp.com/api/webhooks/resend/inbound
-//   3. Add RESEND_WEBHOOK_SECRET to your environment and validate the signature.
-//
-// If you use a different inbound provider (Cloudflare Email Routing, Postmark,
-// Mailgun, etc.), the route path and signature verification change, but the
-// database logic below is the same.
+// It verifies the Svix-signed webhook using RESEND_WEBHOOK_SECRET (HMAC-SHA256).
 
 interface ParsedInboundEmail {
   from: string; // "Sender Name <sender@example.com>"
@@ -26,15 +18,49 @@ interface ParsedInboundEmail {
 
 export async function POST(req: NextRequest) {
   try {
-    // ── Signature verification (recommended) ─────────────────────────────────
-    // Resend signs inbound webhooks with RESEND_WEBHOOK_SECRET. Replace the
-    // naive check below with HMAC-SHA256 verification once you have the secret.
-    const providedSecret = req.headers.get("x-resend-webhook-secret");
-    if (env.resendWebhookSecret && providedSecret !== env.resendWebhookSecret) {
-      return new NextResponse("Forbidden", { status: 403 });
-    }
+    // ── Signature verification (Svix / Resend standard) ──────────────────────
+    if (env.resendWebhookSecret) {
+      const svixId = req.headers.get("svix-id");
+      const svixTimestamp = req.headers.get("svix-timestamp");
+      const svixSignature = req.headers.get("svix-signature");
 
-    const body = await req.json();
+      if (!svixId || !svixTimestamp || !svixSignature) {
+        return new NextResponse("Missing Svix headers", { status: 403 });
+      }
+
+      const rawBody = await req.text();
+      const signedPayload = `${svixId}.${svixTimestamp}.${rawBody}`;
+
+      const signatures = svixSignature
+        .split(" ")
+        .map((s) => s.replace("v1,", ""))
+        .filter(Boolean);
+
+      const expectedSig = crypto
+        .createHmac("sha256", env.resendWebhookSecret)
+        .update(signedPayload)
+        .digest("base64");
+
+      const isValid = signatures.some((sig) => {
+        try {
+          return crypto.timingSafeEqual(
+            Buffer.from(sig),
+            Buffer.from(expectedSig)
+          );
+        } catch {
+          return false;
+        }
+      });
+
+      if (!isValid) {
+        return new NextResponse("Invalid signature", { status: 403 });
+      }
+
+      // Re-parse the body since we consumed it with .text()
+      var body = JSON.parse(rawBody);
+    } else {
+      var body = await req.json();
+    }
 
     // Only process email.received events.
     if (body?.type && body.type !== "email.received") {
