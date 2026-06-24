@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getResend } from '@/lib/email/resend'
 import { revalidatePath } from 'next/cache'
+import { env } from '@/lib/env'
 import type { EmailDomainStatus } from '@/lib/supabase/database.types'
 
 export type DnsRecord = {
@@ -261,4 +262,76 @@ export async function setDefaultEmailDomain(
 
   revalidatePath('/settings')
   return { error: null }
+}
+
+// ── Get the active sender for this workspace ──────────────────────────────────
+
+export type ActiveSender = {
+  fromAddress: string
+  fromName: string | null
+  fromEmail: string
+  domain: string
+  isCustom: boolean
+  inboundEmail: string | null
+}
+
+export async function getActiveSender(): Promise<{
+  data: ActiveSender | null
+  error: string | null
+}> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { data: null, error: 'No workspace selected' }
+
+  // Check for a verified default domain.
+  const { data: domainRow } = await supabase
+    .from('workspace_email_domains')
+    .select('from_name, from_email, domain, status, is_default')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'verified')
+    .order('is_default', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ from_name: string | null; from_email: string; domain: string; status: string; is_default: boolean }>()
+
+  // Get workspace inbound_email.
+  const { data: ws } = await supabase
+    .from('workspaces')
+    .select('inbound_email')
+    .eq('id', workspaceId)
+    .single<{ inbound_email: string | null }>()
+
+  if (domainRow) {
+    const fromAddress = domainRow.from_name
+      ? `${domainRow.from_name} <${domainRow.from_email}>`
+      : domainRow.from_email
+    return {
+      data: {
+        fromAddress,
+        fromName: domainRow.from_name,
+        fromEmail: domainRow.from_email,
+        domain: domainRow.domain,
+        isCustom: true,
+        inboundEmail: ws?.inbound_email ?? null,
+      },
+      error: null,
+    }
+  }
+
+  // Fall back to the platform default.
+  const defaultFrom = env.resendDefaultFrom || 'HyperCRM <noreply@mail.hypercrm.ca>'
+  const defaultDomain = env.resendInboundDomain || 'mail.hypercrm.ca'
+  const match = defaultFrom.match(/^(.*?)\s*<(.+)>$/)
+  const fromName = match ? match[1].trim() : null
+  const fromEmail = match ? match[2] : defaultFrom
+
+  return {
+    data: {
+      fromAddress: defaultFrom,
+      fromName,
+      fromEmail,
+      domain: defaultDomain,
+      isCustom: false,
+      inboundEmail: ws?.inbound_email ?? null,
+    },
+    error: null,
+  }
 }

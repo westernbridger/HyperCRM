@@ -32,21 +32,28 @@ import {
   refreshEmailDomain,
   removeEmailDomain,
   setDefaultEmailDomain,
+  getActiveSender,
   type EmailDomain,
   type DnsRecord,
+  type ActiveSender,
 } from "@/app/actions/email-domains";
 import { cn } from "@/lib/utils";
 
 export function EmailDomainsPanel() {
   const [domains, setDomains] = useState<EmailDomain[]>([]);
+  const [activeSender, setActiveSender] = useState<ActiveSender | null>(null);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await getEmailDomains();
-    setDomains(data ?? []);
+    const [domainsRes, senderRes] = await Promise.all([
+      getEmailDomains(),
+      getActiveSender(),
+    ]);
+    setDomains(domainsRes.data ?? []);
+    setActiveSender(senderRes.data ?? null);
     setLoading(false);
   }, []);
 
@@ -84,6 +91,8 @@ export function EmailDomainsPanel() {
 
   return (
     <div className="space-y-5 max-w-3xl">
+      <ActiveSenderBanner sender={activeSender} loading={loading} />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">Sending Domains</h2>
@@ -131,6 +140,66 @@ export function EmailDomainsPanel() {
         onOpenChange={setAddOpen}
         onAdded={(d) => setDomains((prev) => [d, ...prev])}
       />
+    </div>
+  );
+}
+
+function ActiveSenderBanner({ sender, loading }: { sender: ActiveSender | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Loading sender info…</span>
+      </div>
+    );
+  }
+
+  if (!sender) return null;
+
+  return (
+    <div className={cn(
+      "rounded-xl border p-4 flex items-start gap-3",
+      sender.isCustom
+        ? "border-emerald-500/20 bg-emerald-500/5"
+        : "border-indigo-500/20 bg-indigo-500/5"
+    )}>
+      <div className={cn(
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+        sender.isCustom ? "bg-emerald-500/10" : "bg-indigo-500/10"
+      )}>
+        {sender.isCustom ? (
+          <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+        ) : (
+          <Globe className="h-5 w-5 text-indigo-400" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold">Active Sender</p>
+          <span className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+            sender.isCustom
+              ? "text-emerald-400 bg-emerald-500/10"
+              : "text-indigo-400 bg-indigo-500/10"
+          )}>
+            {sender.isCustom ? "Custom Domain" : "Default"}
+          </span>
+        </div>
+        <p className="text-sm text-foreground/80 mt-1">
+          <span className="font-medium">{sender.fromAddress}</span>
+        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+          <span>Domain: <span className="font-mono">{sender.domain}</span></span>
+          {sender.inboundEmail && (
+            <span>Reply-to: <span className="font-mono">{sender.inboundEmail}</span></span>
+          )}
+        </div>
+        {!sender.isCustom && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Add and verify your own domain below to send from a custom address.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
