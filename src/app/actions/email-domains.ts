@@ -292,12 +292,12 @@ export async function getActiveSender(): Promise<{
     .limit(1)
     .maybeSingle<{ from_name: string | null; from_email: string; domain: string; status: string; is_default: boolean }>()
 
-  // Get workspace inbound_email.
+  // Get workspace name + inbound_email.
   const { data: ws } = await supabase
     .from('workspaces')
-    .select('inbound_email')
+    .select('name, inbound_email')
     .eq('id', workspaceId)
-    .single<{ inbound_email: string | null }>()
+    .single<{ name: string; inbound_email: string | null }>()
 
   if (domainRow) {
     const fromAddress = domainRow.from_name
@@ -316,7 +316,22 @@ export async function getActiveSender(): Promise<{
     }
   }
 
-  // Fall back to the platform default.
+  // Fall back to the workspace's inbound_email for customer communications.
+  if (ws?.inbound_email) {
+    return {
+      data: {
+        fromAddress: `${ws.name} <${ws.inbound_email}>`,
+        fromName: ws.name,
+        fromEmail: ws.inbound_email,
+        domain: ws.inbound_email.split('@')[1] ?? 'email.hypercrm.ca',
+        isCustom: false,
+        inboundEmail: ws.inbound_email,
+      },
+      error: null,
+    }
+  }
+
+  // Last resort: platform noreply (system messages only).
   const defaultFrom = env.resendDefaultFrom || 'HyperCRM <noreply@email.hypercrm.ca>'
   const defaultDomain = env.resendInboundDomain || 'email.hypercrm.ca'
   const match = defaultFrom.match(/^(.*?)\s*<(.+)>$/)
@@ -330,7 +345,7 @@ export async function getActiveSender(): Promise<{
       fromEmail,
       domain: defaultDomain,
       isCustom: false,
-      inboundEmail: ws?.inbound_email ?? null,
+      inboundEmail: null,
     },
     error: null,
   }

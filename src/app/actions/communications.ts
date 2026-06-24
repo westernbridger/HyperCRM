@@ -197,9 +197,13 @@ export async function sendContactEmail(input: {
     }
   }
 
-  // 3. Resolve the workspace's verified sender (falls back to shared sender).
+  // 3. Resolve the workspace's verified sender.
+  // Falls back to the workspace's inbound_email (ws_xxx@email.hypercrm.ca)
+  // so replies route correctly — noreply@ is reserved for system messages.
   const fromAddr = await resolveWorkspaceSender(supabase, workspaceId)
-  console.log('[sendContactEmail] fromAddr:', JSON.stringify(fromAddr))
+  const replyTo = ws?.inbound_email ?? undefined
+  const finalFrom = fromAddr ?? (ws?.inbound_email ? `${ws.name} <${ws.inbound_email}>` : undefined)
+  console.log('[sendContactEmail] fromAddr:', JSON.stringify(finalFrom), '| replyTo:', JSON.stringify(replyTo))
 
   // 4. Insert the outbound message in a "queued" state.
   const isHtml = input.bodyHtml === true
@@ -232,13 +236,12 @@ export async function sendContactEmail(input: {
   }
 
   // 5. Send via Resend, using the workspace sender when available.
-  console.log('[sendContactEmail] replyTo:', ws?.inbound_email ?? 'NONE', '| fromAddr:', fromAddr ?? 'DEFAULT')
   const { sent, error: sendError } = await sendEmail({
     to: contact.email,
     subject,
     html,
-    from: fromAddr ?? undefined,
-    replyTo: ws?.inbound_email ?? undefined,
+    from: finalFrom,
+    replyTo,
   })
 
   // 6. Update message + conversation with the outcome.
@@ -477,6 +480,8 @@ export async function sendBroadcastEmail(input: {
 
   // 5. Resolve sender + signature.
   const fromAddr = await resolveWorkspaceSender(supabase, workspaceId)
+  const replyTo = ws?.inbound_email ?? undefined
+  const finalFrom = fromAddr ?? (ws?.inbound_email ? `${ws.name} <${ws.inbound_email}>` : undefined)
   const signatureHtml = await getSignatureHtml(supabase, workspaceId)
   const htmlWithSig = signatureHtml ? `${bodyRaw}${signatureHtml}` : bodyRaw
 
@@ -564,8 +569,8 @@ export async function sendBroadcastEmail(input: {
       to: contact.email,
       subject,
       html: personalizedHtml,
-      from: fromAddr ?? undefined,
-      replyTo: ws?.inbound_email ?? undefined,
+      from: finalFrom,
+      replyTo,
     })
 
     // Update message status.

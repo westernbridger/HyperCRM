@@ -196,7 +196,7 @@ function ActiveSenderBanner({ sender, loading }: { sender: ActiveSender | null; 
         </div>
         {!sender.isCustom && (
           <p className="text-xs text-muted-foreground mt-2">
-            Add and verify your own domain below to send from a custom address.
+            Emails are sent from your workspace address. Add and verify your own domain below to send from a custom address.
           </p>
         )}
       </div>
