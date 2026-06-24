@@ -42,7 +42,9 @@ export async function POST(req: NextRequest) {
     }
 
     const email = normalizeEmail(body) as ParsedInboundEmail;
+    console.log('[Inbound Email] Parsed:', { from: email.from, to: email.to, subject: email.subject, hasText: !!email.text, hasHtml: !!email.html });
     if (!email.from || !email.to.length) {
+      console.log('[Inbound Email] Rejected: missing from or to');
       return new NextResponse("Bad Request", { status: 400 });
     }
 
@@ -65,19 +67,23 @@ export async function POST(req: NextRequest) {
 
     // ── Resolve the workspace by the receiving domain ───────────────────────
     const receivingDomain = email.to[0].split("@")[1]?.toLowerCase();
+    console.log('[Inbound Email] Receiving domain:', receivingDomain);
     if (!receivingDomain) {
       return new NextResponse("No receiving domain", { status: 400 });
     }
 
-    const { data: domainRow } = await supabase
+    const { data: domainRow, error: domainErr } = await supabase
       .from("workspace_email_domains")
-      .select("workspace_id")
+      .select("workspace_id, domain, status")
       .eq("domain", receivingDomain)
       .eq("status", "verified")
-      .single<{ workspace_id: string }>();
+      .single<{ workspace_id: string; domain: string; status: string }>();
+
+    console.log('[Inbound Email] Domain lookup:', domainRow ? { workspace_id: domainRow.workspace_id, domain: domainRow.domain } : 'NOT FOUND', domainErr ? `error: ${domainErr.message}` : '');
 
     if (!domainRow) {
       // No workspace owns this receiving domain — drop the email silently.
+      console.log('[Inbound Email] Dropped: no workspace owns domain', receivingDomain);
       return new NextResponse("OK", { status: 200 });
     }
     const workspaceId = domainRow.workspace_id;
@@ -85,6 +91,7 @@ export async function POST(req: NextRequest) {
     // ── Resolve the contact by sender email ─────────────────────────────────
     const senderEmail = extractEmail(email.from);
     const senderName = extractName(email.from) || senderEmail;
+    console.log('[Inbound Email] Sender:', senderEmail, '| Name:', senderName);
 
     let { data: contact } = await supabase
       .from("contacts")
@@ -146,6 +153,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Store the inbound message ───────────────────────────────────────────
+    console.log('[Inbound Email] Storing message in conversation:', conversation.id);
     const { error: msgErr } = await supabase.from("messages").insert({
       conversation_id: conversation.id,
       workspace_id: workspaceId,
@@ -167,6 +175,8 @@ export async function POST(req: NextRequest) {
       console.error("[Inbound Email] Failed to save message:", msgErr);
       return new NextResponse("Failed to save message", { status: 500 });
     }
+
+    console.log('[Inbound Email] Success: message stored');
 
     // Update the conversation's last message timestamp.
     await supabase
