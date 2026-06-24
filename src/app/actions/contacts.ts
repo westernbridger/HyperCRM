@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { env } from '@/lib/env'
 
 function generateInboundEmail(): string {
-  const domain = env.resendInboundDomain || 'mail.hypercrm.ca'
+  const domain = env.resendInboundDomain || 'email.hypercrm.ca'
   const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
   return `ws_${shortId}@${domain}`
 }

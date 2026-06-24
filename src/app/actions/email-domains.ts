@@ -317,8 +317,8 @@ export async function getActiveSender(): Promise<{
   }
 
   // Fall back to the platform default.
-  const defaultFrom = env.resendDefaultFrom || 'HyperCRM <noreply@mail.hypercrm.ca>'
-  const defaultDomain = env.resendInboundDomain || 'mail.hypercrm.ca'
+  const defaultFrom = env.resendDefaultFrom || 'HyperCRM <noreply@email.hypercrm.ca>'
+  const defaultDomain = env.resendInboundDomain || 'email.hypercrm.ca'
   const match = defaultFrom.match(/^(.*?)\s*<(.+)>$/)
   const fromName = match ? match[1].trim() : null
   const fromEmail = match ? match[2] : defaultFrom

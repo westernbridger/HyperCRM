@@ -13,7 +13,7 @@ export function getResend(): Resend | null {
 
 // The "from" address. Falls back to RESEND_DEFAULT_FROM, then to Resend's shared sender.
 const FROM_ADDRESS =
-  env.resendDefaultFrom || process.env.RESEND_FROM_EMAIL || 'HyperCRM <onboarding@resend.dev>'
+  env.resendDefaultFrom || process.env.RESEND_FROM_EMAIL || 'HyperCRM <noreply@email.hypercrm.ca>'
 
 export interface SendEmailParams {
   to: string

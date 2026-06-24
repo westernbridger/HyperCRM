@@ -22,7 +22,7 @@ export type Workspace = {
 // Generate a unique inbound email address for a workspace.
 // Format: ws_{short_uuid}@{RESEND_INBOUND_DOMAIN}
 function generateInboundEmail(): string {
-  const domain = env.resendInboundDomain || 'mail.hypercrm.ca'
+  const domain = env.resendInboundDomain || 'email.hypercrm.ca'
   const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
   return `ws_${shortId}@${domain}`
 }

@@ -9,7 +9,7 @@ set search_path to public;
 alter table workspaces add column if not exists inbound_email text unique;
 
 -- ── Backfill existing workspaces ──────────────────────────────
--- Generates ws_{first 8 chars of uuid}@mail.hypercrm.ca for each workspace.
+-- Generates ws_{first 8 chars of uuid}@email.hypercrm.ca for each workspace.
 do $$
 declare
   ws record;
@@ -18,7 +18,7 @@ declare
 begin
   for ws in select id from workspaces where inbound_email is null loop
     short_id := left(replace(ws.id::text, '-', ''), 8);
-    inbound_addr := 'ws_' || short_id || '@mail.hypercrm.ca';
+    inbound_addr := 'ws_' || short_id || '@email.hypercrm.ca';
     update workspaces set inbound_email = inbound_addr where id = ws.id;
   end loop;
 end $$;
