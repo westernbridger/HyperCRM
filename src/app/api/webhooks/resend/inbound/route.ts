@@ -20,13 +20,14 @@ export async function POST(req: NextRequest) {
   try {
     // ── Signature verification (Svix / Resend standard) ──────────────────────
     // TODO: Re-enable strict verification once signing secret is confirmed.
+    let body: any;
+
     if (env.resendWebhookSecret) {
       const svixId = req.headers.get("svix-id");
       const svixTimestamp = req.headers.get("svix-timestamp");
       const svixSignature = req.headers.get("svix-signature");
 
       const rawBody = await req.text();
-      let body;
 
       if (svixId && svixTimestamp && svixSignature) {
         const signedPayload = `${svixId}.${svixTimestamp}.${rawBody}`;
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
         body = JSON.parse(rawBody);
       }
     } else {
-      var body = await req.json();
+      body = await req.json();
     }
 
     // Only process email.received events.
