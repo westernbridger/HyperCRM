@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { EmailSignature } from '@/lib/supabase/database.types'
 import { DEFAULT_EMAIL_SIGNATURE } from '@/lib/supabase/database.types'
-import { resolveSignature } from '@/lib/email/signature'
+import { resolveSignature, renderSignatureHtml } from '@/lib/email/signature'
 
 // ── Get the workspace's email signature ──────────────────────────────────────
 
@@ -80,7 +80,5 @@ export async function getSignatureHtml(
     .single<{ email_signature: Record<string, any> | null }>()
 
   const sig = resolveSignature(data?.email_signature)
-  // Import dynamically to avoid circular deps in the renderer
-  const { renderSignatureHtml } = await import('@/lib/email/signature')
   return renderSignatureHtml(sig)
 }
