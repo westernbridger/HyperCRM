@@ -74,8 +74,10 @@ export const DEFAULT_FORM_BRANDING: HyperFormBranding = {
 
 // ── Email signature ──────────────────────────────────────────────────────────
 export type SignatureStyle = 'minimal' | 'modern' | 'classic'
+export type SignatureMode = 'structured' | 'image'
 
 export type EmailSignature = {
+  mode: SignatureMode
   fullName: string
   title: string
   company: string
@@ -86,9 +88,12 @@ export type EmailSignature = {
   twitterUrl: string
   style: SignatureStyle
   primaryColor: string
+  imageUrl: string
+  imageWidth: number
 }
 
 export const DEFAULT_EMAIL_SIGNATURE: EmailSignature = {
+  mode: 'structured',
   fullName: '',
   title: '',
   company: '',
@@ -99,6 +104,8 @@ export const DEFAULT_EMAIL_SIGNATURE: EmailSignature = {
   twitterUrl: '',
   style: 'modern',
   primaryColor: '#6366f1',
+  imageUrl: '',
+  imageWidth: 400,
 }
 
 // ── Communications (email / SMS / WhatsApp) ─────────────────────────────────

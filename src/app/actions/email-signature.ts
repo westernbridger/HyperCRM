@@ -82,3 +82,39 @@ export async function getSignatureHtml(
   const sig = resolveSignature(data?.email_signature)
   return renderSignatureHtml(sig)
 }
+
+// ── Upload a signature image ─────────────────────────────────────────────────
+
+export async function uploadSignatureImage(
+  formData: FormData
+): Promise<{ url: string | null; error: string | null }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const workspaceId =
+    (user?.user_metadata?.current_workspace_id as string | undefined) ?? null
+  if (!workspaceId) return { url: null, error: 'No workspace selected' }
+
+  const file = formData.get('file') as File | null
+  if (!file) return { url: null, error: 'No file provided' }
+
+  if (!file.type.startsWith('image/')) {
+    return { url: null, error: 'Only image files are allowed' }
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return { url: null, error: 'Image must be under 5MB' }
+  }
+
+  const ext = file.name.split('.').pop() || 'png'
+  const path = `${workspaceId}/signature-${Date.now()}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('form-assets')
+    .upload(path, file, { cacheControl: '3600', upsert: false })
+
+  if (uploadError) return { url: null, error: uploadError.message }
+
+  const { data } = supabase.storage.from('form-assets').getPublicUrl(path)
+  return { url: data.publicUrl, error: null }
+}

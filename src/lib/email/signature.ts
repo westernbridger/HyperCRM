@@ -14,6 +14,7 @@ export function resolveSignature(
 
 // Check if a signature has any meaningful content.
 export function hasSignature(sig: EmailSignature): boolean {
+  if (sig.mode === 'image') return Boolean(sig.imageUrl)
   return Boolean(
     sig.fullName ||
       sig.title ||
@@ -41,6 +42,12 @@ function displayUrl(url: string): string {
 // Render the signature as an HTML table (most email-client-compatible).
 export function renderSignatureHtml(sig: EmailSignature): string {
   if (!hasSignature(sig)) return "";
+
+  // Image mode: render a simple <img> tag.
+  if (sig.mode === 'image' && sig.imageUrl) {
+    const w = Math.max(100, Math.min(800, sig.imageWidth || 400))
+    return `<table cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;"><tr><td><img src="${esc(sig.imageUrl)}" width="${w}" style="width:${w}px;max-width:${w}px;height:auto;border:0;display:block;" alt="Signature"/></td></tr></table>`
+  }
 
   const c = esc(sig.primaryColor || "#6366f1");
   const name = esc(sig.fullName);
