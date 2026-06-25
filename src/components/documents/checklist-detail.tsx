@@ -266,43 +266,43 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex-1 min-w-0">
-          {editing ? (
-            <div className="space-y-2">
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="text-lg font-semibold h-9"
-                placeholder="Checklist name"
-              />
-              <RichTextEditor
-                value={description}
-                onChange={setDescription}
-                placeholder="Description (optional) — add details, formatting, links…"
-              />
-              <div className="flex items-center gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs">Passcode</Label>
-                  <Input
-                    value={passcode}
-                    onChange={(e) => setPasscode(e.target.value)}
-                    className="h-8 w-40 text-sm"
-                    placeholder="e.g. BBQ2024"
-                  />
-                </div>
-                <div className="flex items-center gap-2 pt-5">
-                  <Switch
-                    checked={allowEditing}
-                    onCheckedChange={setAllowEditing}
-                  />
-                  <Label className="text-xs flex items-center gap-1">
-                    {allowEditing ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                    Allow editing
-                  </Label>
-                </div>
+        {editing ? (
+          <div className="w-full space-y-2">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="text-lg font-semibold h-9"
+              placeholder="Checklist name"
+            />
+            <RichTextEditor
+              value={description}
+              onChange={setDescription}
+              placeholder="Description (optional) — add details, formatting, links…"
+            />
+            <div className="flex items-center gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs">Passcode</Label>
+                <Input
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  className="h-8 w-40 text-sm"
+                  placeholder="e.g. BBQ2024"
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <Switch
+                  checked={allowEditing}
+                  onCheckedChange={setAllowEditing}
+                />
+                <Label className="text-xs flex items-center gap-1">
+                  {allowEditing ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                  Allow editing
+                </Label>
               </div>
             </div>
-          ) : (
+          </div>
+        ) : (
+          <div className="flex-1 min-w-0">
             <>
               <h2 className="text-lg font-semibold truncate">{data.name}</h2>
               {data.description && (
@@ -325,8 +325,8 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
                 </span>
               </div>
             </>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
