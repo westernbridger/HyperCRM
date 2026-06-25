@@ -366,6 +366,63 @@ export async function getConversations(): Promise<{
   return { data: items, error: null }
 }
 
+// ── Search across all messages in the workspace ──────────────────────────────
+
+export type SearchResultItem = {
+  message_id: string
+  conversation_id: string
+  subject: string | null
+  body_text: string | null
+  direction: MessageDirection
+  created_at: string
+  contact_name: string
+  contact_email: string
+}
+
+export async function searchMessages(
+  query: string
+): Promise<{ data: SearchResultItem[] | null; error: string | null }> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { data: null, error: 'No workspace selected' }
+
+  const q = query.trim()
+  if (!q) return { data: [], error: null }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      id,
+      conversation_id,
+      subject,
+      body_text,
+      direction,
+      created_at,
+      contacts ( first_name, last_name, email )
+    `)
+    .eq('workspace_id', workspaceId)
+    .or(`subject.ilike.%${q}%,body_text.ilike.%${q}%`)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) return { data: null, error: error.message }
+
+  const items: SearchResultItem[] = (data ?? []).map((m: any) => {
+    const contact = m.contacts ?? {}
+    return {
+      message_id: m.id,
+      conversation_id: m.conversation_id,
+      subject: m.subject,
+      body_text: m.body_text,
+      direction: m.direction,
+      created_at: m.created_at,
+      contact_name: `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() || 'Unknown',
+      contact_email: contact.email ?? '',
+    }
+  })
+
+  return { data: items, error: null }
+}
+
 // ── Messages within a single conversation ────────────────────────────────────
 
 export async function getConversationMessages(

@@ -13,6 +13,8 @@ import {
   Radio,
   Paperclip,
   Trash2,
+  Search,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,9 +37,11 @@ import {
   getCommunicationStats,
   getBroadcasts,
   deleteConversation,
+  searchMessages,
   type ConversationListItem,
   type Message,
   type BroadcastListItem,
+  type SearchResultItem,
 } from "@/app/actions/communications";
 import { getContacts } from "@/app/actions/contacts";
 import { getEmailSignature } from "@/app/actions/email-signature";
@@ -77,7 +81,40 @@ export function CommunicationsInbox() {
   const [signatureHtml, setSignatureHtml] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleSearch = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (!q) {
+      setSearchResults([]);
+      setSearchMode(false);
+      setSearching(false);
+      return;
+    }
+    setSearchMode(true);
+    setSearching(true);
+    const { data } = await searchMessages(q);
+    setSearchResults(data ?? []);
+    setSearching(false);
+  }, []);
+
+  const onSearchInput = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => handleSearch(value), 300);
+  }, [handleSearch]);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchMode(false);
+    setSearching(false);
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -199,12 +236,74 @@ export function CommunicationsInbox() {
         <TabsContent value="inbox" className="mt-4">
       {/* Inbox */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 rounded-xl glass overflow-hidden min-h-[28rem]">
-        {/* Conversation list */}
+        {/* Conversation list / Search */}
         <div className={cn("border-r border-border", selected && "hidden lg:block")}>
-          <div className="px-4 py-3 border-b border-border">
-            <h3 className="text-sm font-semibold">Conversations</h3>
+          {/* Search bar */}
+          <div className="px-3 py-2.5 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => onSearchInput(e.target.value)}
+                placeholder="Search messages…"
+                className="w-full rounded-lg bg-secondary/50 border border-border pl-8 pr-7 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+              {searchQuery && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
-          {loading ? (
+          {searchMode ? (
+            searching ? (
+              <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Searching…</span>
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 px-6 text-center">
+                <Search className="h-8 w-8 text-muted-foreground/30" />
+                <p className="mt-3 text-sm font-medium">No results found</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Try a different search term.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border max-h-[31rem] overflow-y-auto">
+                {searchResults.map((r) => (
+                  <button
+                    key={r.message_id}
+                    onClick={() => {
+                      const convo = conversations.find((c) => c.id === r.conversation_id);
+                      if (convo) openConversation(convo);
+                    }}
+                    className="w-full text-left px-4 py-3 transition-colors hover:bg-secondary/50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">
+                        {r.direction === "outbound" ? "→ " : "← "}
+                        {r.contact_name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {formatRelative(r.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-foreground/70 truncate mt-0.5">
+                      {r.subject || "(no subject)"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      {r.body_text?.slice(0, 80) || ""}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )
+          ) : loading ? (
             <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span className="text-sm">Loading…</span>
