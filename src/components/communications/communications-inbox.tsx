@@ -15,6 +15,15 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { MetricTile } from "@/components/dashboard/metric-tile";
 import { ComposeEmailDialog } from "./compose-email-dialog";
 import { BroadcastDialog } from "./broadcast-dialog";
@@ -65,6 +74,7 @@ export function CommunicationsInbox() {
   const [contactsLoading, setContactsLoading] = useState(true);
   const [signatureHtml, setSignatureHtml] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadAll = useCallback(async () => {
@@ -128,14 +138,11 @@ export function CommunicationsInbox() {
 
   async function handleDeleteConversation() {
     if (!selected) return;
-    if (!confirm("Delete this conversation and all its messages? This cannot be undone.")) return;
     setDeleting(true);
     const { error } = await deleteConversation(selected.id);
     setDeleting(false);
-    if (error) {
-      alert(`Failed to delete: ${error}`);
-      return;
-    }
+    setDeleteDialogOpen(false);
+    if (error) return;
     setSelected(null);
     setMessages([]);
     loadAll();
@@ -258,7 +265,7 @@ export function CommunicationsInbox() {
                   <p className="text-xs text-muted-foreground truncate">{selected.contact_email}</p>
                 </div>
                 <button
-                  onClick={handleDeleteConversation}
+                  onClick={() => setDeleteDialogOpen(true)}
                   disabled={deleting}
                   className="p-1.5 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50"
                   title="Delete conversation"
@@ -304,6 +311,32 @@ export function CommunicationsInbox() {
           onSent={handleSent}
         />
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete conversation?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the conversation and all its messages. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConversation}
+              disabled={deleting}
+              className="gap-2"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
         </TabsContent>
 
         <TabsContent value="broadcasts" className="mt-4">
