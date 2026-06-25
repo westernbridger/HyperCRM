@@ -801,6 +801,120 @@ export type Database = {
         }
         Relationships: []
       }
+      checklists: {
+        Row: {
+          id: string
+          workspace_id: string
+          name: string
+          description: string | null
+          passcode: string
+          is_active: boolean
+          allow_editing: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          name: string
+          description?: string | null
+          passcode: string
+          is_active?: boolean
+          allow_editing?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          name?: string
+          description?: string | null
+          passcode?: string
+          is_active?: boolean
+          allow_editing?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      checklist_items: {
+        Row: {
+          id: string
+          checklist_id: string
+          label: string
+          quantity: string | null
+          sort_order: number
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          checklist_id: string
+          label: string
+          quantity?: string | null
+          sort_order?: number
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          checklist_id?: string
+          label?: string
+          quantity?: string | null
+          sort_order?: number
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      checklist_participants: {
+        Row: {
+          id: string
+          checklist_id: string
+          display_name: string
+          avatar_color: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          checklist_id: string
+          display_name: string
+          avatar_color?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          checklist_id?: string
+          display_name?: string
+          avatar_color?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      checklist_checks: {
+        Row: {
+          id: string
+          item_id: string
+          participant_id: string
+          checked_at: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          participant_id: string
+          checked_at?: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          participant_id?: string
+          checked_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
