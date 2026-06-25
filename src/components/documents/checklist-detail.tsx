@@ -31,8 +31,10 @@ import {
   deleteChecklist,
   addChecklistItem,
   deleteChecklistItem,
+  updateChecklistItem,
   type ChecklistWithDetails,
   type ChecklistItem,
+  type ChecklistItemField,
   type ChecklistParticipant,
 } from "@/app/actions/checklists";
 
@@ -55,6 +57,60 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
   const [newItemLabel, setNewItemLabel] = useState("");
   const [newItemQty, setNewItemQty] = useState("");
   const [addingItem, setAddingItem] = useState(false);
+  // Inline editing state for items
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editFields, setEditFields] = useState<ChecklistItemField[]>([]);
+  const [savingItem, setSavingItem] = useState(false);
+
+  function startEditItem(item: ChecklistItem) {
+    setEditingItemId(item.id);
+    setEditLabel(item.label);
+    setEditQty(item.quantity ?? "");
+    setEditFields(item.fields ?? []);
+  }
+
+  function cancelEditItem() {
+    setEditingItemId(null);
+    setEditLabel("");
+    setEditQty("");
+    setEditFields([]);
+  }
+
+  async function saveEditItem(itemId: string) {
+    setSavingItem(true);
+    await updateChecklistItem(itemId, {
+      label: editLabel.trim(),
+      quantity: editQty.trim() || null,
+      fields: editFields.filter((f) => f.label.trim()),
+    });
+    setSavingItem(false);
+    // Update local state
+    if (data) {
+      setData({
+        ...data,
+        items: data.items.map((i) =>
+          i.id === itemId
+            ? { ...i, label: editLabel.trim(), quantity: editQty.trim() || null, fields: editFields.filter((f) => f.label.trim()) }
+            : i
+        ),
+      });
+    }
+    cancelEditItem();
+  }
+
+  function addEditField() {
+    setEditFields([...editFields, { id: crypto.randomUUID(), label: "", value: "" }]);
+  }
+
+  function updateEditField(idx: number, key: "label" | "value", val: string) {
+    setEditFields(editFields.map((f, i) => (i === idx ? { ...f, [key]: val } : f)));
+  }
+
+  function removeEditField(idx: number) {
+    setEditFields(editFields.filter((_, i) => i !== idx));
+  }
 
   const load = useCallback(async () => {
     const { data: d } = await getChecklistById(checklistId);
@@ -300,54 +356,147 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
           <AnimatePresence initial={false}>
             {data.items.map((item, i) => {
               const checkers = checksByItem.get(item.id) ?? [];
+              const isEditing = editingItemId === item.id;
               return (
                 <motion.div
                   key={item.id}
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.97 }}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                  className="rounded-xl border border-border bg-card px-4 py-3"
                 >
-                  <span className="text-xs font-mono text-muted-foreground w-6 text-right">{i + 1}.</span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium">{item.label}</span>
-                    {item.quantity && (
-                      <span className="ml-2 text-xs text-muted-foreground">qty: {item.quantity}</span>
-                    )}
-                  </div>
-                  {/* Checkers */}
-                  <div className="flex items-center gap-1">
-                    {checkers.length > 0 ? (
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex -space-x-2">
-                          {checkers.slice(0, 5).map((p) => (
-                            <div
-                              key={p.id}
-                              className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold text-white"
-                              style={{ backgroundColor: p.avatar_color }}
-                              title={p.display_name}
-                            >
-                              {p.display_name.slice(0, 2).toUpperCase()}
-                            </div>
-                          ))}
-                        </div>
-                        {checkers.length > 5 && (
-                          <span className="text-xs text-muted-foreground">+{checkers.length - 5}</span>
-                        )}
-                        <span className="text-xs text-emerald-400 ml-1">
-                          {checkers.length} checked
-                        </span>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-muted-foreground w-6 text-right shrink-0">{i + 1}.</span>
+                        <Input
+                          value={editLabel}
+                          onChange={(e) => setEditLabel(e.target.value)}
+                          className="h-8 text-sm flex-1"
+                          placeholder="Item label"
+                          autoFocus
+                        />
+                        <Input
+                          value={editQty}
+                          onChange={(e) => setEditQty(e.target.value)}
+                          className="h-8 text-sm w-20"
+                          placeholder="qty"
+                        />
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground/50">Unchecked</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleDeleteItem(item.id)}
-                    className="ml-1 rounded p-1 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                      {editFields.map((field, fi) => (
+                        <div key={field.id} className="flex items-center gap-2 pl-8">
+                          <Input
+                            value={field.label}
+                            onChange={(e) => updateEditField(fi, "label", e.target.value)}
+                            className="h-7 text-xs w-32"
+                            placeholder="Field name"
+                          />
+                          <Input
+                            value={field.value}
+                            onChange={(e) => updateEditField(fi, "value", e.target.value)}
+                            className="h-7 text-xs flex-1"
+                            placeholder="Value"
+                          />
+                          <button
+                            onClick={() => removeEditField(fi)}
+                            className="text-muted-foreground hover:text-rose-400 p-0.5"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-2 pl-8">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={addEditField}
+                          className="h-7 gap-1 text-xs text-muted-foreground"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add field
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 pl-8">
+                        <Button
+                          size="sm"
+                          onClick={() => saveEditItem(item.id)}
+                          disabled={savingItem || !editLabel.trim()}
+                          className="h-7 gap-1 text-xs"
+                        >
+                          {savingItem ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                          Save
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={cancelEditItem}
+                          className="h-7 text-xs"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono text-muted-foreground w-6 text-right shrink-0">{i + 1}.</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{item.label}</span>
+                          {item.quantity && (
+                            <span className="text-xs text-muted-foreground">qty: {item.quantity}</span>
+                          )}
+                        </div>
+                        {item.fields && item.fields.length > 0 && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                            {item.fields.map((f) => (
+                              <span key={f.id} className="text-[11px] text-muted-foreground">
+                                <span className="text-muted-foreground/60">{f.label}:</span>{" "}
+                                <span className="text-foreground/80">{f.value}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {checkers.length > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex -space-x-2">
+                              {checkers.slice(0, 5).map((p) => (
+                                <div
+                                  key={p.id}
+                                  className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold text-white"
+                                  style={{ backgroundColor: p.avatar_color }}
+                                  title={p.display_name}
+                                >
+                                  {p.display_name.slice(0, 2).toUpperCase()}
+                                </div>
+                              ))}
+                            </div>
+                            {checkers.length > 5 && (
+                              <span className="text-xs text-muted-foreground">+{checkers.length - 5}</span>
+                            )}
+                            <span className="text-xs text-emerald-400 ml-1">
+                              {checkers.length} checked
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">Unchecked</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => startEditItem(item)}
+                        className="ml-1 rounded p-1 text-muted-foreground hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="rounded p-1 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               );
             })}

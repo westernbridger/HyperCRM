@@ -340,13 +340,25 @@ export default function PublicChecklistPage() {
                     ) : null}
                   </button>
 
-                  {/* Label + quantity */}
+                  {/* Label + quantity + custom fields */}
                   <div className="flex-1 min-w-0">
-                    <span className={cn("text-sm font-medium", isCheckedByMe && "line-through text-muted-foreground")}>
-                      {item.label}
-                    </span>
-                    {item.quantity && (
-                      <span className="ml-2 text-xs text-muted-foreground">qty: {item.quantity}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-sm font-medium", isCheckedByMe && "line-through text-muted-foreground")}>
+                        {item.label}
+                      </span>
+                      {item.quantity && (
+                        <span className="text-xs text-muted-foreground">qty: {item.quantity}</span>
+                      )}
+                    </div>
+                    {item.fields && item.fields.length > 0 && (
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                        {item.fields.map((f) => (
+                          <span key={f.id} className="text-[11px] text-muted-foreground">
+                            <span className="text-muted-foreground/60">{f.label}:</span>{" "}
+                            <span className="text-foreground/80">{f.value}</span>
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
 

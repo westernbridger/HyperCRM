@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -11,6 +12,7 @@ import {
   ToggleRight,
   ToggleLeft,
   Lock,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +27,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { FormDetail } from "@/components/documents/form-detail";
 import { FormBuilder } from "@/components/documents/form-builder";
-import { ChecklistDetail } from "@/components/documents/checklist-detail";
 import { getForms, createForm, type HyperForm } from "@/app/actions/forms";
 import {
   getChecklists,
@@ -38,12 +39,12 @@ import { cn } from "@/lib/utils";
 type DocTab = "forms" | "checklists";
 
 export default function DocumentsPage() {
+  const router = useRouter();
   const [tab, setTab] = useState<DocTab>("forms");
   const [forms, setForms] = useState<HyperForm[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedForm, setSelectedForm] = useState<HyperForm | null>(null);
-  const [selectedChecklistId, setSelectedChecklistId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
 
@@ -117,7 +118,7 @@ export default function DocumentsPage() {
     if (error) { setCreateError(error); return; }
     if (data) {
       setChecklists((prev) => [data, ...prev]);
-      setSelectedChecklistId(data.id);
+      router.push(`/checklists/${data.id}/manage`);
     }
     setShowCreate(false);
     setClName("");
@@ -139,7 +140,6 @@ export default function DocumentsPage() {
 
   function handleChecklistDeleted(id: string) {
     setChecklists((prev) => prev.filter((c) => c.id !== id));
-    setSelectedChecklistId(null);
   }
 
   const isChecklistTab = tab === "checklists";
@@ -162,7 +162,7 @@ export default function DocumentsPage() {
         {/* Tabs */}
         <div className="flex gap-1 px-3 pt-3">
           <button
-            onClick={() => { setTab("forms"); setSelectedChecklistId(null); }}
+            onClick={() => { setTab("forms"); setSelectedForm(null); }}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
               tab === "forms" ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/50"
@@ -214,18 +214,16 @@ export default function DocumentsPage() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -6 }}
                     transition={{ duration: 0.15 }}
-                    onClick={() => setSelectedChecklistId(cl.id)}
+                    onClick={() => router.push(`/checklists/${cl.id}/manage`)}
                     className={cn(
                       "w-full text-left rounded-lg px-3 py-2.5 transition-colors group",
-                      selectedChecklistId === cl.id
-                        ? "bg-secondary text-foreground"
-                        : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                      "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                     )}
                   >
                     <div className="flex items-start gap-2.5">
                       <ListChecks className={cn(
                         "h-4 w-4 shrink-0 mt-0.5",
-                        selectedChecklistId === cl.id ? "text-indigo-400" : "text-muted-foreground"
+                        "text-muted-foreground group-hover:text-indigo-400"
                       )} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate leading-tight">{cl.name}</p>
@@ -314,15 +312,7 @@ export default function DocumentsPage() {
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-6 md:p-8">
         {isChecklistTab ? (
-          selectedChecklistId ? (
-            <ChecklistDetail
-              key={selectedChecklistId}
-              checklistId={selectedChecklistId}
-              onDeleted={handleChecklistDeleted}
-            />
-          ) : (
-            <EmptyState type="checklist" onCreate={() => setShowCreate(true)} />
-          )
+          <EmptyState type="checklist" onCreate={() => setShowCreate(true)} />
         ) : selectedForm ? (
           <FormDetail
             key={selectedForm.id}

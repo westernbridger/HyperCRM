@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const PUBLIC_PREFIXES = ["/forms/"];
+const PUBLIC_PREFIXES = ["/forms/", "/checklists/"];
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

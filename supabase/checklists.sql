@@ -76,10 +76,20 @@ create table if not exists checklist_items (
   checklist_id    uuid not null references checklists(id) on delete cascade,
   label           text not null,
   quantity        text,
+  fields          jsonb not null default '[]'::jsonb,
   sort_order      integer not null default 0,
   created_by      uuid references users(id) on delete set null,
   created_at      timestamptz not null default now()
 );
+
+-- Add fields column if it doesn't exist (for existing installations)
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+    where table_name = 'checklist_items' and column_name = 'fields') then
+    alter table checklist_items add column fields jsonb not null default '[]'::jsonb;
+  end if;
+end $$;
 
 create index if not exists checklist_items_checklist_idx on checklist_items(checklist_id);
 

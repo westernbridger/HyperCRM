@@ -19,11 +19,18 @@ export type Checklist = {
   updated_at: string
 }
 
+export type ChecklistItemField = {
+  id: string
+  label: string
+  value: string
+}
+
 export type ChecklistItem = {
   id: string
   checklist_id: string
   label: string
   quantity: string | null
+  fields: ChecklistItemField[]
   sort_order: number
   created_by: string | null
   created_at: string
@@ -247,7 +254,7 @@ export async function addChecklistItem(
 
 export async function updateChecklistItem(
   itemId: string,
-  input: Partial<Pick<ChecklistItem, 'label' | 'quantity' | 'sort_order'>>
+  input: Partial<Pick<ChecklistItem, 'label' | 'quantity' | 'sort_order' | 'fields'>>
 ): Promise<{ error: string | null }> {
   const supabase = await createClient()
   const { workspaceId } = await getWorkspaceId()
@@ -395,7 +402,8 @@ export async function addChecklistItemPublic(
   checklistId: string,
   label: string,
   quantity: string | null,
-  participantId: string
+  participantId: string,
+  fields?: ChecklistItemField[]
 ): Promise<{ data: ChecklistItem | null; error: string | null }> {
   const admin = createAdminClient()
 
@@ -426,6 +434,7 @@ export async function addChecklistItemPublic(
       checklist_id: checklistId,
       label,
       quantity,
+      fields: fields ?? [],
       sort_order: nextOrder,
     })
     .select()

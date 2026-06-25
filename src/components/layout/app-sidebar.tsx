@@ -329,8 +329,8 @@ export function AppSidebar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Hide sidebar on public-facing routes (form fill pages)
-  if (pathname.startsWith("/forms/")) return null;
+  // Hide sidebar on public-facing routes (form fill pages, checklist pages)
+  if (pathname.startsWith("/forms/") || pathname.startsWith("/checklists/")) return null;
 
   return (
     <>

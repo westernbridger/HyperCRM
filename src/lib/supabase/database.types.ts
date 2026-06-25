@@ -846,6 +846,7 @@ export type Database = {
           checklist_id: string
           label: string
           quantity: string | null
+          fields: Record<string, any>[]
           sort_order: number
           created_by: string | null
           created_at: string
@@ -855,6 +856,7 @@ export type Database = {
           checklist_id: string
           label: string
           quantity?: string | null
+          fields?: Record<string, any>[]
           sort_order?: number
           created_by?: string | null
           created_at?: string
@@ -864,6 +866,7 @@ export type Database = {
           checklist_id?: string
           label?: string
           quantity?: string | null
+          fields?: Record<string, any>[]
           sort_order?: number
           created_by?: string | null
           created_at?: string
