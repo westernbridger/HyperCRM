@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { Resend } from "resend";
 import crypto from "crypto";
+import type { MessageStatus } from "@/lib/supabase/database.types";
 
 // This endpoint receives parsed inbound emails from Resend's inbound service.
 // It verifies the Svix-signed webhook using RESEND_WEBHOOK_SECRET (HMAC-SHA256).
@@ -73,8 +74,16 @@ export async function POST(req: NextRequest) {
       body = await req.json();
     }
 
-    // Only process email.received events.
-    if (body?.type && body.type !== "email.received") {
+    // ── Handle email tracking events (delivered, opened, clicked, bounced) ───
+    const eventType = body?.type;
+    const TRACKING_EVENTS = ["email.delivered", "email.opened", "email.clicked", "email.bounced"];
+
+    if (eventType && TRACKING_EVENTS.includes(eventType)) {
+      return handleTrackingEvent(body);
+    }
+
+    // Only process email.received events beyond this point.
+    if (eventType && eventType !== "email.received") {
       return new NextResponse("OK", { status: 200 });
     }
 
@@ -439,4 +448,88 @@ function extractEmail(raw: string): string {
 function extractName(raw: string): string | null {
   const match = raw.match(/^([^<]+)</);
   return match ? match[1].trim() : null;
+}
+
+// ── Handle email tracking events from Resend ──────────────────────────────────
+// Updates the outbound message status when Resend reports delivery, open, click,
+// or bounce events. The message is matched by provider_message_id (Resend's email ID).
+async function handleTrackingEvent(body: any): Promise<NextResponse> {
+  const eventType = body?.type as string;
+  const d = body?.data ?? body;
+  const resendEmailId = d?.email_id || d?.id || d?.message_id;
+
+  console.log(`[Email Event] ${eventType} for email:`, resendEmailId);
+
+  if (!resendEmailId) {
+    console.warn("[Email Event] No email_id found in payload");
+    return new NextResponse("OK", { status: 200 });
+  }
+
+  const supabase = createAdminClient();
+
+  // Map Resend event types to our message status values
+  const statusMap: Record<string, MessageStatus> = {
+    "email.delivered": "delivered",
+    "email.opened": "opened",
+    "email.clicked": "clicked",
+    "email.bounced": "bounced",
+  };
+
+  const newStatus = statusMap[eventType] as MessageStatus | undefined;
+  if (!newStatus) {
+    return new NextResponse("OK", { status: 200 });
+  }
+
+  // Find the outbound message by Resend's email ID (stored as provider_message_id)
+  const { data: message, error: findErr } = await supabase
+    .from("messages")
+    .select("id, status, conversation_id, workspace_id, contact_id, subject")
+    .eq("provider_message_id", resendEmailId)
+    .eq("direction", "outbound")
+    .maybeSingle<{ id: string; status: string; conversation_id: string; workspace_id: string; contact_id: string; subject: string }>();
+
+  if (findErr || !message) {
+    console.warn(`[Email Event] No outbound message found for email_id:`, resendEmailId);
+    return new NextResponse("OK", { status: 200 });
+  }
+
+  // Don't downgrade status (e.g. delivered → opened is fine, but don't go opened → delivered)
+  const statusOrder = ["queued", "sent", "delivered", "opened", "clicked", "bounced", "failed"];
+  const currentIndex = statusOrder.indexOf(message.status);
+  const newIndex = statusOrder.indexOf(newStatus);
+
+  // Bounced and failed are always applied regardless of current status
+  if (newStatus !== "bounced" && currentIndex >= newIndex) {
+    console.log(`[Email Event] Skipping ${newStatus} — current status is ${message.status}`);
+    return new NextResponse("OK", { status: 200 });
+  }
+
+  // Update the message status
+  const { error: updateErr } = await supabase
+    .from("messages")
+    .update({
+      status: newStatus,
+      ...(newStatus === "bounced" && d?.bounce_reason ? { error: d.bounce_reason } : {}),
+    })
+    .eq("id", message.id);
+
+  if (updateErr) {
+    console.error(`[Email Event] Failed to update message status:`, updateErr.message);
+  } else {
+    console.log(`[Email Event] Updated message ${message.id} → ${newStatus}`);
+  }
+
+  // Log bounce as an activity on the contact
+  if (newStatus === "bounced") {
+    await supabase.from("activities").insert({
+      contact_id: message.contact_id,
+      workspace_id: message.workspace_id,
+      type: "email",
+      title: `Email bounced: ${message.subject}`,
+      content: d?.bounce_reason || "Email was bounced by the recipient's server",
+      metadata: { message_id: message.id, event: eventType },
+    });
+  }
+
+  return new NextResponse("OK", { status: 200 });
 }
