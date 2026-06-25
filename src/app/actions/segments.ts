@@ -82,6 +82,25 @@ export async function getSegments(): Promise<{
   return { data: segments, error: null }
 }
 
+// ── Get contact IDs for a segment (for broadcast selection) ──────────────────
+
+export async function getSegmentContactIds(
+  segmentId: string
+): Promise<{ data: string[] | null; error: string | null }> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { data: null, error: 'No workspace selected' }
+
+  const { data, error } = await supabase
+    .from('segment_contacts')
+    .select('contact_id')
+    .eq('segment_id', segmentId)
+
+  if (error) return { data: null, error: error.message }
+
+  const ids = ((data ?? []) as any[]).map((r) => r.contact_id as string)
+  return { data: ids, error: null }
+}
+
 // ── Get a single segment with its contacts ───────────────────────────────────
 
 export async function getSegmentContacts(

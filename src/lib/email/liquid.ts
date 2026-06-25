@@ -52,7 +52,7 @@ function resolveExpression(expr: string, ctx: TemplateContext): string {
 }
 
 // Resolve a dotted path like "contact.first_name" or "contact.custom_fields.company_size".
-function resolvePath(path: string, ctx: TemplateContext): any {
+export function resolvePath(path: string, ctx: TemplateContext): any {
   const parts = path.split(".")
   let current: any = ctx
 

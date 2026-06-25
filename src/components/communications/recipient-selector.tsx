@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, X, Check, Users, Loader2 } from "lucide-react";
+import { Search, X, Check, Users, Loader2, FolderPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getSegments, getSegmentContactIds, type Segment } from "@/app/actions/segments";
 
 export type RecipientContact = {
   id: string;
@@ -30,6 +31,28 @@ export function RecipientSelector({
 }: RecipientSelectorProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [addingSegment, setAddingSegment] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setSegmentsLoading(true);
+      const { data } = await getSegments();
+      setSegments(data ?? []);
+      setSegmentsLoading(false);
+    })();
+  }, []);
+
+  const handleAddSegment = useCallback(async (segmentId: string) => {
+    setAddingSegment(segmentId);
+    const { data: ids } = await getSegmentContactIds(segmentId);
+    if (ids && ids.length > 0) {
+      const newSet = new Set([...selectedIds, ...ids]);
+      onSelectionChange(Array.from(newSet));
+    }
+    setAddingSegment(null);
+  }, [selectedIds, onSelectionChange]);
 
   const filtered = useMemo(() => {
     let list = contacts.filter((c) => c.email);
@@ -102,6 +125,39 @@ export function RecipientSelector({
           >
             Clear all
           </button>
+        </div>
+      )}
+
+      {/* Segments quick-add */}
+      {segments.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+            <FolderPlus className="h-3.5 w-3.5" />
+            Segments:
+          </span>
+          {segmentsLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          ) : (
+            segments.map((seg) => (
+              <button
+                key={seg.id}
+                onClick={() => handleAddSegment(seg.id)}
+                disabled={addingSegment === seg.id}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs hover:bg-muted/60 transition-colors disabled:opacity-50"
+              >
+                {addingSegment === seg.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: seg.color || "#6366f1" }}
+                  />
+                )}
+                {seg.name}
+                <span className="text-muted-foreground">({seg.contact_count ?? 0})</span>
+              </button>
+            ))
+          )}
         </div>
       )}
 

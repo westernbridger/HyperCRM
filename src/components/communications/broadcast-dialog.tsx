@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2, Send, Users, PenLine, Eye, ChevronDown, AlertCircle, Check, ArrowRight, ArrowLeft } from "lucide-react";
+import { Loader2, Send, Users, PenLine, Eye, ChevronDown, AlertCircle, Check, ArrowRight, ArrowLeft, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ import { sendBroadcastEmail } from "@/app/actions/communications";
 import { RichTextEditor } from "./rich-text-editor";
 import { RecipientSelector, type RecipientContact } from "./recipient-selector";
 import { EmailPreview } from "./email-preview";
-import { TEMPLATE_VARIABLES, type TemplateContext } from "@/lib/email/liquid";
+import { TEMPLATE_VARIABLES, type TemplateContext, extractVariables, resolvePath } from "@/lib/email/liquid";
 import { cn } from "@/lib/utils";
 
 interface BroadcastDialogProps {
@@ -38,7 +38,14 @@ interface BroadcastDialogProps {
   onSent?: () => void;
 }
 
-type Step = "recipients" | "compose" | "preview" | "sending" | "result";
+type Step = "recipients" | "compose" | "preview" | "validation" | "sending" | "result";
+
+type InvalidContact = {
+  id: string;
+  name: string;
+  email: string;
+  reasons: string[];
+};
 
 export function BroadcastDialog({
   open,
@@ -57,6 +64,8 @@ export function BroadcastDialog({
   const [bodyHtml, setBodyHtml] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ sentCount: number; failedCount: number } | null>(null);
+  const [invalidContacts, setInvalidContacts] = useState<InvalidContact[]>([]);
+  const [validContactIds, setValidContactIds] = useState<string[]>([]);
   const subjectInputRef = useRef<HTMLInputElement>(null);
 
   function reset() {
@@ -66,6 +75,8 @@ export function BroadcastDialog({
     setBodyHtml("");
     setError(null);
     setResult(null);
+    setInvalidContacts([]);
+    setValidContactIds([]);
   }
 
   function insertSubjectVariable(token: string) {
@@ -115,19 +126,79 @@ export function BroadcastDialog({
     }
   }
 
-  function handleBack() {
-    setError(null);
-    if (step === "compose") setStep("recipients");
-    else if (step === "preview") setStep("compose");
+
+  function validateRecipients(): { invalid: InvalidContact[]; validIds: string[] } {
+    const templateVars = extractVariables(subject + " " + bodyHtml);
+    const invalid: InvalidContact[] = [];
+    const validIds: string[] = [];
+
+    for (const c of contacts) {
+      if (!selectedIds.includes(c.id)) continue;
+      const reasons: string[] = [];
+
+      // Check email
+      if (!c.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.email)) {
+        reasons.push("Missing or invalid email");
+      }
+
+      // Check liquid template variables
+      if (reasons.length === 0 && templateVars.length > 0) {
+        const ctx: TemplateContext = {
+          contact: {
+            first_name: c.first_name,
+            last_name: c.last_name,
+            email: c.email,
+            phone: null,
+            company: c.company,
+            status: c.status,
+            custom_fields: {},
+          },
+          workspace: { name: workspaceName },
+        };
+        for (const varPath of templateVars) {
+          const value = resolvePath(varPath, ctx);
+          if (value === null || value === undefined || value === "") {
+            reasons.push(`Missing {{${varPath}}}`);
+          }
+        }
+      }
+
+      if (reasons.length > 0) {
+        invalid.push({
+          id: c.id,
+          name: `${c.first_name} ${c.last_name}`.trim() || c.email || c.id,
+          email: c.email || "(no email)",
+          reasons,
+        });
+      } else {
+        validIds.push(c.id);
+      }
+    }
+
+    return { invalid, validIds };
   }
 
-  async function handleSend() {
+  function handleSend() {
+    setError(null);
+    const { invalid, validIds } = validateRecipients();
+    setInvalidContacts(invalid);
+    setValidContactIds(validIds);
+
+    if (invalid.length > 0) {
+      setStep("validation");
+      return;
+    }
+
+    doSend(selectedIds);
+  }
+
+  async function doSend(ids: string[]) {
     setError(null);
     setStep("sending");
     const { sentCount, failedCount, error: sendError } = await sendBroadcastEmail({
       subject,
       bodyHtml,
-      contactIds: selectedIds,
+      contactIds: ids,
     });
     if (sendError) {
       setError(sendError);
@@ -145,6 +216,13 @@ export function BroadcastDialog({
     { key: "preview", label: "Preview", icon: Eye },
   ];
 
+  function handleBack() {
+    setError(null);
+    if (step === "compose") setStep("recipients");
+    else if (step === "preview") setStep("compose");
+    else if (step === "validation") setStep("preview");
+  }
+
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -159,7 +237,7 @@ export function BroadcastDialog({
         </DialogHeader>
 
         {/* Step indicator */}
-        {step !== "sending" && step !== "result" && (
+        {step !== "sending" && step !== "result" && step !== "validation" && (
           <div className="flex items-center gap-2 py-2">
             {steps.map((s, i) => {
               const stepIndex = steps.findIndex((x) => x.key === step);
@@ -269,6 +347,49 @@ export function BroadcastDialog({
           />
         )}
 
+        {step === "validation" && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-amber-300">
+                  {invalidContacts.length} contact{invalidContacts.length !== 1 ? "s" : ""} will be skipped
+                </p>
+                <p className="text-xs text-amber-200/70">
+                  These contacts have missing or invalid email addresses, or are missing data for template variables used in your message. They will not receive this broadcast to protect your deliverability.
+                </p>
+              </div>
+            </div>
+
+            {validContactIds.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{validContactIds.length}</span> contact{validContactIds.length !== 1 ? "s" : ""} will receive the broadcast.
+              </p>
+            )}
+
+            <div className="max-h-64 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+              {invalidContacts.map((c) => (
+                <div key={c.id} className="px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">{c.email}</p>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {c.reasons.map((r, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center rounded-md bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-300"
+                      >
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {step === "sending" && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
@@ -299,7 +420,7 @@ export function BroadcastDialog({
         )}
 
         {/* Footer */}
-        {step !== "sending" && step !== "result" && (
+        {step !== "sending" && step !== "result" && step !== "validation" && (
           <DialogFooter>
             {step !== "recipients" && (
               <Button variant="outline" onClick={handleBack} className="gap-2">
@@ -317,6 +438,23 @@ export function BroadcastDialog({
                 <Send className="h-4 w-4" />
                 Send to {selectedIds.length} recipient{selectedIds.length !== 1 ? "s" : ""}
               </Button>
+            )}
+          </DialogFooter>
+        )}
+
+        {step === "validation" && (
+          <DialogFooter>
+            <Button variant="outline" onClick={handleBack} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+            {validContactIds.length > 0 ? (
+              <Button onClick={() => doSend(validContactIds)} className="gap-2">
+                <Send className="h-4 w-4" />
+                Send to {validContactIds.length} valid recipient{validContactIds.length !== 1 ? "s" : ""}
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground self-center">No valid recipients to send to.</p>
             )}
           </DialogFooter>
         )}
