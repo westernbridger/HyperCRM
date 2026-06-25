@@ -148,8 +148,18 @@ export default function PublicChecklistPage() {
     // Check if we already have a participant ID stored
     const storedPid = localStorage.getItem(`${STORAGE_KEY_PREFIX}${checklistId}`);
     if (storedPid) {
-      setParticipantId(storedPid);
-      setPhase("checklist");
+      // Verify the participant still exists (organizer may have removed them)
+      if (d.participants.some((p) => p.id === storedPid)) {
+        setParticipantId(storedPid);
+        setPhase("checklist");
+      } else {
+        // Participant was removed — clear stored data and go to join phase
+        localStorage.removeItem(`${STORAGE_KEY_PREFIX}${checklistId}`);
+        localStorage.removeItem(`${STORAGE_KEY_PREFIX}${checklistId}_name`);
+        setParticipantId(null);
+        setDisplayName("");
+        setPhase("join");
+      }
     } else {
       setPhase("join");
     }
