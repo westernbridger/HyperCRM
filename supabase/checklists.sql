@@ -13,6 +13,7 @@ create table if not exists checklists (
   workspace_id    uuid not null references workspaces(id) on delete cascade,
   name            text not null,
   description     text,
+  banner_image    text,
   passcode        text not null,
   is_active       boolean not null default true,
   allow_editing   boolean not null default false,
@@ -20,6 +21,15 @@ create table if not exists checklists (
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
+
+-- Add banner_image column if it doesn't exist (for existing installations)
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+    where table_name = 'checklists' and column_name = 'banner_image') then
+    alter table checklists add column banner_image text;
+  end if;
+end $$;
 
 create index if not exists checklists_workspace_idx on checklists(workspace_id);
 

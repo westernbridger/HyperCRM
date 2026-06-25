@@ -807,6 +807,7 @@ export type Database = {
           workspace_id: string
           name: string
           description: string | null
+          banner_image: string | null
           passcode: string
           is_active: boolean
           allow_editing: boolean
@@ -819,6 +820,7 @@ export type Database = {
           workspace_id: string
           name: string
           description?: string | null
+          banner_image?: string | null
           passcode: string
           is_active?: boolean
           allow_editing?: boolean
@@ -831,6 +833,7 @@ export type Database = {
           workspace_id?: string
           name?: string
           description?: string | null
+          banner_image?: string | null
           passcode?: string
           is_active?: boolean
           allow_editing?: boolean

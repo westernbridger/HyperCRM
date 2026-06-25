@@ -18,6 +18,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Users,
+  ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
   addChecklistItem,
   deleteChecklistItem,
   updateChecklistItem,
+  uploadChecklistBanner,
   type ChecklistWithDetails,
   type ChecklistItem,
   type ChecklistItemField,
@@ -57,6 +59,7 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
   const [newItemLabel, setNewItemLabel] = useState("");
   const [newItemQty, setNewItemQty] = useState("");
   const [addingItem, setAddingItem] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   // Inline editing state for items
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
@@ -186,6 +189,23 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
     setData({ ...data, items: data.items.filter((i) => i.id !== itemId) });
   }
 
+  async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!data || !e.target.files?.[0]) return;
+    setUploadingBanner(true);
+    const formData = new FormData();
+    formData.append("file", e.target.files[0]);
+    const { url, error } = await uploadChecklistBanner(data.id, formData);
+    setUploadingBanner(false);
+    if (error) return;
+    if (url) setData({ ...data, banner_image: url });
+  }
+
+  async function handleRemoveBanner() {
+    if (!data) return;
+    const { data: updated } = await updateChecklist(data.id, { banner_image: null });
+    if (updated) setData({ ...data, banner_image: null });
+  }
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -212,6 +232,38 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
 
   return (
     <div className="flex flex-col h-full space-y-4">
+      {/* Banner image */}
+      {data.banner_image ? (
+        <div className="relative rounded-xl overflow-hidden border border-border">
+          <img
+            src={data.banner_image}
+            alt="Banner"
+            className="w-full h-40 object-cover"
+          />
+          <button
+            onClick={handleRemoveBanner}
+            className="absolute top-2 right-2 rounded-lg bg-black/60 backdrop-blur p-1.5 text-white hover:bg-black/80 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <label className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border py-6 cursor-pointer hover:bg-secondary/30 transition-colors text-sm text-muted-foreground">
+          {uploadingBanner ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
+          ) : (
+            <><ImagePlus className="h-4 w-4" /> Add banner image</>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleBannerUpload}
+            className="hidden"
+            disabled={uploadingBanner}
+          />
+        </label>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex-1 min-w-0">

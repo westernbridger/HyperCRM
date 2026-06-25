@@ -11,6 +11,7 @@ export type Checklist = {
   workspace_id: string
   name: string
   description: string | null
+  banner_image: string | null
   passcode: string
   is_active: boolean
   allow_editing: boolean
@@ -179,7 +180,7 @@ export async function createChecklist(
 
 export async function updateChecklist(
   id: string,
-  input: Partial<Pick<Checklist, 'name' | 'description' | 'passcode' | 'is_active' | 'allow_editing'>>
+  input: Partial<Pick<Checklist, 'name' | 'description' | 'banner_image' | 'passcode' | 'is_active' | 'allow_editing'>>
 ): Promise<{ data: Checklist | null; error: string | null }> {
   const supabase = await createClient()
   const { workspaceId } = await getWorkspaceId()
@@ -442,6 +443,47 @@ export async function addChecklistItemPublic(
 
   if (error) return { data: null, error: error.message }
   return { data: data as ChecklistItem, error: null }
+}
+
+export async function uploadChecklistBanner(
+  checklistId: string,
+  formData: FormData
+): Promise<{ url: string | null; error: string | null }> {
+  const supabase = await createClient()
+  const { workspaceId } = await getWorkspaceId()
+  if (!workspaceId) return { url: null, error: 'No workspace selected' }
+
+  const file = formData.get('file') as File | null
+  if (!file) return { url: null, error: 'No file provided' }
+
+  if (!file.type.startsWith('image/')) {
+    return { url: null, error: 'Only image files are allowed' }
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return { url: null, error: 'Image must be under 5MB' }
+  }
+
+  const ext = file.name.split('.').pop() || 'png'
+  const path = `${workspaceId}/checklist-banner-${checklistId}-${Date.now()}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('form-assets')
+    .upload(path, file, { cacheControl: '3600', upsert: false })
+
+  if (uploadError) return { url: null, error: uploadError.message }
+
+  const { data } = supabase.storage.from('form-assets').getPublicUrl(path)
+
+  // Save the banner URL to the checklist
+  const { error: updateError } = await supabase
+    .from('checklists')
+    .update({ banner_image: data.publicUrl, updated_at: new Date().toISOString() })
+    .eq('id', checklistId)
+    .eq('workspace_id', workspaceId)
+
+  if (updateError) return { url: null, error: updateError.message }
+  revalidatePath('/documents')
+  return { url: data.publicUrl, error: null }
 }
 
 export async function updateChecklistItemPublic(

@@ -347,6 +347,16 @@ export default function PublicChecklistPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Banner image */}
+      {data.banner_image && (
+        <div className="w-full h-48 overflow-hidden">
+          <img
+            src={data.banner_image}
+            alt={data.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
       <div className="mx-auto max-w-2xl px-4 py-8">
         {/* Header */}
         <div className="mb-8">
