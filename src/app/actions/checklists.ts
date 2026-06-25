@@ -217,6 +217,42 @@ export async function deleteChecklist(id: string): Promise<{ error: string | nul
 
 // ── Item management (organizer) ─────────────────────────────────────────────
 
+export async function removeChecklistParticipant(
+  checklistId: string,
+  participantId: string
+): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const { workspaceId } = await getWorkspaceId()
+  if (!workspaceId) return { error: 'No workspace selected' }
+
+  // Verify the checklist belongs to this workspace
+  const { data: checklist, error: clErr } = await supabase
+    .from('checklists')
+    .select('id')
+    .eq('id', checklistId)
+    .eq('workspace_id', workspaceId)
+    .single()
+
+  if (clErr || !checklist) return { error: 'Checklist not found' }
+
+  // Delete the participant's checks first (RLS may block cascade)
+  await supabase
+    .from('checklist_checks')
+    .delete()
+    .eq('participant_id', participantId)
+
+  // Delete the participant
+  const { error } = await supabase
+    .from('checklist_participants')
+    .delete()
+    .eq('id', participantId)
+    .eq('checklist_id', checklistId)
+
+  if (error) return { error: error.message }
+  revalidatePath('/documents')
+  return { error: null }
+}
+
 export async function addChecklistItem(
   checklistId: string,
   label: string,

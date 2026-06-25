@@ -19,6 +19,7 @@ import {
   ToggleRight,
   Users,
   ImagePlus,
+  UserMinus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import {
   deleteChecklistItem,
   updateChecklistItem,
   uploadChecklistBanner,
+  removeChecklistParticipant,
   type ChecklistWithDetails,
   type ChecklistItem,
   type ChecklistItemField,
@@ -204,6 +206,17 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
     if (!data) return;
     const { data: updated } = await updateChecklist(data.id, { banner_image: null });
     if (updated) setData({ ...data, banner_image: null });
+  }
+
+  async function handleRemoveParticipant(participantId: string) {
+    if (!data) return;
+    const { error } = await removeChecklistParticipant(data.id, participantId);
+    if (error) return;
+    setData({
+      ...data,
+      participants: data.participants.filter((p) => p.id !== participantId),
+      checks: data.checks.filter((c) => c.participant_id !== participantId),
+    });
   }
 
   if (loading) {
@@ -598,7 +611,7 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
               return (
                 <div
                   key={p.id}
-                  className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-1.5"
+                  className="group flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-1.5"
                 >
                   <div
                     className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white"
@@ -608,6 +621,13 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
                   </div>
                   <span className="text-xs font-medium">{p.display_name}</span>
                   <span className="text-[10px] text-muted-foreground">{checkCount} checks</span>
+                  <button
+                    onClick={() => handleRemoveParticipant(p.id)}
+                    className="ml-0.5 rounded p-0.5 text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Remove participant"
+                  >
+                    <UserMinus className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               );
             })}
