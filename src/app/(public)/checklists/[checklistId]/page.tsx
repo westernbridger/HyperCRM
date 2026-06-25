@@ -11,6 +11,9 @@ import {
   Check,
   Plus,
   X,
+  Edit3,
+  LogOut,
+  Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +24,11 @@ import {
   joinChecklist,
   toggleCheck,
   addChecklistItemPublic,
+  updateChecklistItemPublic,
   type ChecklistWithDetails,
   type ChecklistParticipant,
+  type ChecklistItem,
+  type ChecklistItemField,
 } from "@/app/actions/checklists";
 
 const STORAGE_KEY_PREFIX = "checklist_participant_";
@@ -44,6 +50,73 @@ export default function PublicChecklistPage() {
   const [newItemLabel, setNewItemLabel] = useState("");
   const [newItemQty, setNewItemQty] = useState("");
   const [addingItem, setAddingItem] = useState(false);
+  // Inline editing state for items
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editFields, setEditFields] = useState<ChecklistItemField[]>([]);
+  const [savingItem, setSavingItem] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function startEditItem(item: ChecklistItem) {
+    setEditingItemId(item.id);
+    setEditLabel(item.label);
+    setEditQty(item.quantity ?? "");
+    setEditFields(item.fields ?? []);
+    setEditError(null);
+  }
+
+  function cancelEditItem() {
+    setEditingItemId(null);
+    setEditLabel("");
+    setEditQty("");
+    setEditFields([]);
+    setEditError(null);
+  }
+
+  async function saveEditItem(itemId: string) {
+    if (!participantId || !data) return;
+    setSavingItem(true);
+    setEditError(null);
+    const { data: updated, error } = await updateChecklistItemPublic(itemId, participantId, {
+      label: editLabel.trim(),
+      quantity: editQty.trim() || null,
+      fields: editFields.filter((f) => f.label.trim()),
+    });
+    setSavingItem(false);
+    if (error || !updated) {
+      setEditError(error ?? "Failed to save");
+      return;
+    }
+    setData({
+      ...data,
+      items: data.items.map((i) => (i.id === itemId ? updated : i)),
+    });
+    cancelEditItem();
+  }
+
+  function addEditField() {
+    setEditFields([...editFields, { id: crypto.randomUUID(), label: "", value: "" }]);
+  }
+
+  function updateEditField(idx: number, key: "label" | "value", val: string) {
+    setEditFields(editFields.map((f, i) => (i === idx ? { ...f, [key]: val } : f)));
+  }
+
+  function removeEditField(idx: number) {
+    setEditFields(editFields.filter((_, i) => i !== idx));
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(`${STORAGE_KEY_PREFIX}${checklistId}`);
+    localStorage.removeItem(`${STORAGE_KEY_PREFIX}${checklistId}_name`);
+    localStorage.removeItem(`${STORAGE_KEY_PREFIX}${checklistId}_passcode`);
+    setParticipantId(null);
+    setDisplayName("");
+    setPasscode("");
+    setData(null);
+    setPhase("passcode");
+  }
 
   // Check for stored participant ID on load
   useEffect(() => {
@@ -288,16 +361,25 @@ export default function PublicChecklistPage() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 mt-3">
-            <div
-              className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{ backgroundColor: data.participants.find((p) => p.id === participantId)?.avatar_color ?? "#6366f1" }}
-            >
-              {displayName.slice(0, 2).toUpperCase()}
+          <div className="flex items-center justify-between gap-2 mt-3">
+            <div className="flex items-center gap-2">
+              <div
+                className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                style={{ backgroundColor: data.participants.find((p) => p.id === participantId)?.avatar_color ?? "#6366f1" }}
+              >
+                {displayName.slice(0, 2).toUpperCase()}
+              </div>
+              <span className="text-sm text-muted-foreground">
+                You&apos;re checked in as <span className="font-medium text-foreground">{displayName}</span>
+              </span>
             </div>
-            <span className="text-sm text-muted-foreground">
-              You&apos;re checked in as <span className="font-medium text-foreground">{displayName}</span>
-            </span>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Leave
+            </button>
           </div>
         </div>
 
@@ -308,6 +390,9 @@ export default function PublicChecklistPage() {
               const checkers = checksByItem.get(item.id) ?? [];
               const isCheckedByMe = myCheckedItems.has(item.id);
               const isToggling = togglingItemId === item.id;
+              const checkedByOthers = checkers.some((p) => p.id !== participantId);
+              const canEdit = data.allow_editing && !checkedByOthers;
+              const isEditing = editingItemId === item.id;
 
               return (
                 <motion.div
@@ -316,76 +401,163 @@ export default function PublicChecklistPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.97 }}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
+                    "rounded-xl border px-4 py-3 transition-colors",
                     isCheckedByMe
                       ? "border-emerald-500/30 bg-emerald-500/5"
                       : "border-border bg-card"
                   )}
                 >
-                  {/* Checkbox */}
-                  <button
-                    onClick={() => handleToggle(item.id)}
-                    disabled={isToggling}
-                    className={cn(
-                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-all",
-                      isCheckedByMe
-                        ? "border-emerald-500 bg-emerald-500 text-white"
-                        : "border-muted-foreground/30 hover:border-indigo-400"
-                    )}
-                  >
-                    {isToggling ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : isCheckedByMe ? (
-                      <Check className="h-4 w-4" />
-                    ) : null}
-                  </button>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editLabel}
+                          onChange={(e) => setEditLabel(e.target.value)}
+                          className="h-8 text-sm flex-1"
+                          placeholder="Item label"
+                          autoFocus
+                        />
+                        <Input
+                          value={editQty}
+                          onChange={(e) => setEditQty(e.target.value)}
+                          className="h-8 text-sm w-20"
+                          placeholder="qty"
+                        />
+                      </div>
+                      {editFields.map((field, fi) => (
+                        <div key={field.id} className="flex items-center gap-2 pl-1">
+                          <Input
+                            value={field.label}
+                            onChange={(e) => updateEditField(fi, "label", e.target.value)}
+                            className="h-7 text-xs w-32"
+                            placeholder="Field name"
+                          />
+                          <Input
+                            value={field.value}
+                            onChange={(e) => updateEditField(fi, "value", e.target.value)}
+                            className="h-7 text-xs flex-1"
+                            placeholder="Value"
+                          />
+                          <button
+                            onClick={() => removeEditField(fi)}
+                            className="text-muted-foreground hover:text-rose-400 p-0.5"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={addEditField}
+                          className="h-7 gap-1 text-xs text-muted-foreground"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add field
+                        </Button>
+                      </div>
+                      {editError && (
+                        <p className="text-xs text-destructive pl-1">{editError}</p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => saveEditItem(item.id)}
+                          disabled={savingItem || !editLabel.trim()}
+                          className="h-7 gap-1 text-xs"
+                        >
+                          {savingItem ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                          Save
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={cancelEditItem}
+                          className="h-7 text-xs"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      {/* Checkbox */}
+                      <button
+                        onClick={() => handleToggle(item.id)}
+                        disabled={isToggling}
+                        className={cn(
+                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-all",
+                          isCheckedByMe
+                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            : "border-muted-foreground/30 hover:border-indigo-400"
+                        )}
+                      >
+                        {isToggling ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : isCheckedByMe ? (
+                          <Check className="h-4 w-4" />
+                        ) : null}
+                      </button>
 
-                  {/* Label + quantity + custom fields */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("text-sm font-medium", isCheckedByMe && "line-through text-muted-foreground")}>
-                        {item.label}
-                      </span>
-                      {item.quantity && (
-                        <span className="text-xs text-muted-foreground">qty: {item.quantity}</span>
+                      {/* Label + quantity + custom fields */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-sm font-medium", isCheckedByMe && "line-through text-muted-foreground")}>
+                            {item.label}
+                          </span>
+                          {item.quantity && (
+                            <span className="text-xs text-muted-foreground">qty: {item.quantity}</span>
+                          )}
+                        </div>
+                        {item.fields && item.fields.length > 0 && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                            {item.fields.map((f) => (
+                              <span key={f.id} className="text-[11px] text-muted-foreground">
+                                <span className="text-muted-foreground/60">{f.label}:</span>{" "}
+                                <span className="text-foreground/80">{f.value}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Checkers */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {checkers.length > 0 ? (
+                          <>
+                            <div className="flex -space-x-2">
+                              {checkers.slice(0, 5).map((p) => (
+                                <div
+                                  key={p.id}
+                                  className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[9px] font-bold text-white"
+                                  style={{ backgroundColor: p.avatar_color }}
+                                  title={p.display_name}
+                                >
+                                  {p.display_name.slice(0, 2).toUpperCase()}
+                                </div>
+                              ))}
+                            </div>
+                            {checkers.length > 5 && (
+                              <span className="text-xs text-muted-foreground">+{checkers.length - 5}</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">Unchecked</span>
+                        )}
+                      </div>
+
+                      {/* Edit button (if editing allowed and not checked by others) */}
+                      {canEdit && (
+                        <button
+                          onClick={() => startEditItem(item)}
+                          className="ml-1 rounded p-1 text-muted-foreground hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors shrink-0"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
-                    {item.fields && item.fields.length > 0 && (
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                        {item.fields.map((f) => (
-                          <span key={f.id} className="text-[11px] text-muted-foreground">
-                            <span className="text-muted-foreground/60">{f.label}:</span>{" "}
-                            <span className="text-foreground/80">{f.value}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Checkers */}
-                  <div className="flex items-center gap-1.5">
-                    {checkers.length > 0 ? (
-                      <>
-                        <div className="flex -space-x-2">
-                          {checkers.slice(0, 5).map((p) => (
-                            <div
-                              key={p.id}
-                              className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[9px] font-bold text-white"
-                              style={{ backgroundColor: p.avatar_color }}
-                              title={p.display_name}
-                            >
-                              {p.display_name.slice(0, 2).toUpperCase()}
-                            </div>
-                          ))}
-                        </div>
-                        {checkers.length > 5 && (
-                          <span className="text-xs text-muted-foreground">+{checkers.length - 5}</span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground/40">Unchecked</span>
-                    )}
-                  </div>
+                  )}
                 </motion.div>
               );
             })}

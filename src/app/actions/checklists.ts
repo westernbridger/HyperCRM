@@ -443,3 +443,52 @@ export async function addChecklistItemPublic(
   if (error) return { data: null, error: error.message }
   return { data: data as ChecklistItem, error: null }
 }
+
+export async function updateChecklistItemPublic(
+  itemId: string,
+  participantId: string,
+  input: Partial<Pick<ChecklistItem, 'label' | 'quantity' | 'fields'>>
+): Promise<{ data: ChecklistItem | null; error: string | null }> {
+  const admin = createAdminClient()
+
+  // Get the item to find its checklist
+  const { data: item, error: itemError } = await admin
+    .from('checklist_items')
+    .select('checklist_id')
+    .eq('id', itemId)
+    .single()
+
+  if (itemError || !item) return { data: null, error: 'Item not found' }
+
+  // Verify the checklist allows editing
+  const { data: checklist } = await admin
+    .from('checklists')
+    .select('allow_editing')
+    .eq('id', item.checklist_id)
+    .single<{ allow_editing: boolean }>()
+
+  if (!checklist?.allow_editing) {
+    return { data: null, error: 'This checklist does not allow participant editing' }
+  }
+
+  // Check if the item has been checked by anyone OTHER than the current participant
+  const { count } = await admin
+    .from('checklist_checks')
+    .select('*', { count: 'exact', head: true })
+    .eq('item_id', itemId)
+    .neq('participant_id', participantId)
+
+  if (count && count > 0) {
+    return { data: null, error: 'This item has been checked by another participant and can no longer be edited' }
+  }
+
+  const { data: updated, error: updateError } = await admin
+    .from('checklist_items')
+    .update(input)
+    .eq('id', itemId)
+    .select()
+    .single()
+
+  if (updateError) return { data: null, error: updateError.message }
+  return { data: updated as ChecklistItem, error: null }
+}
