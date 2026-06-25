@@ -312,7 +312,10 @@ export default function PublicChecklistPage() {
             </div>
             <h1 className="text-xl font-bold">{data?.name}</h1>
             {data?.description && (
-              <p className="text-sm text-muted-foreground mt-1">{data.description}</p>
+              <div
+                className="prose prose-sm prose-invert max-w-none text-muted-foreground mt-1 [&_p]:my-1 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_a]:text-indigo-400"
+                dangerouslySetInnerHTML={{ __html: data.description }}
+              />
             )}
             <p className="text-sm text-muted-foreground mt-3">
               Enter your name to join the checklist. This will be shown when you check items.
