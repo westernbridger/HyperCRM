@@ -366,6 +366,40 @@ export async function POST(req: NextRequest) {
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", conversationId);
 
+    // ── Notify all workspace members about the inbound email ────────────────
+    try {
+      const { data: members } = await supabase
+        .from("workspace_members")
+        .select("user_id")
+        .eq("workspace_id", workspaceId);
+
+      if (members && members.length > 0) {
+        const senderName = email.from.replace(/<[^>]+>/, "").trim() || email.from;
+        const notifTitle = `New email from ${senderName}`;
+        const notifContent = email.subject || "(no subject)";
+        const notifLink = `/communications`;
+
+        const notifs = members.map((m) => ({
+          user_id: m.user_id,
+          workspace_id: workspaceId,
+          type: "inbound_email" as const,
+          title: notifTitle,
+          content: notifContent,
+          link: notifLink,
+          read: false,
+        }));
+
+        const { error: notifErr } = await supabase.from("notifications").insert(notifs);
+        if (notifErr) {
+          console.error("[Inbound Email] Failed to create notifications:", notifErr.message);
+        } else {
+          console.log(`[Inbound Email] Created ${notifs.length} notifications`);
+        }
+      }
+    } catch (notifError) {
+      console.error("[Inbound Email] Error creating notifications:", notifError);
+    }
+
     return new NextResponse("OK", { status: 200 });
   } catch (error) {
     console.error("[Inbound Email] Error processing inbound email:", error);

@@ -130,6 +130,8 @@ export function NotificationBell({ workspaceId }: NotificationBellProps) {
         return "🏢";
       case "mention":
         return "💬";
+      case "inbound_email":
+        return "📧";
       default:
         return "📢";
     }

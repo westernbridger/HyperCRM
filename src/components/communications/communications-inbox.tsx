@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Mail,
   Send,
@@ -12,6 +12,7 @@ import {
   Reply,
   Radio,
   Paperclip,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MetricTile } from "@/components/dashboard/metric-tile";
@@ -24,6 +25,7 @@ import {
   getConversationMessages,
   getCommunicationStats,
   getBroadcasts,
+  deleteConversation,
   type ConversationListItem,
   type Message,
   type BroadcastListItem,
@@ -62,6 +64,8 @@ export function CommunicationsInbox() {
   const [contacts, setContacts] = useState<ContactForBroadcast[]>([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [signatureHtml, setSignatureHtml] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -111,11 +115,30 @@ export function CommunicationsInbox() {
     const { data } = await getConversationMessages(c.id);
     setMessages(data ?? []);
     setLoadingThread(false);
+    // Scroll to bottom after messages load
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    });
   }, []);
 
   function handleSent() {
     loadAll();
     if (selected) openConversation(selected);
+  }
+
+  async function handleDeleteConversation() {
+    if (!selected) return;
+    if (!confirm("Delete this conversation and all its messages? This cannot be undone.")) return;
+    setDeleting(true);
+    const { error } = await deleteConversation(selected.id);
+    setDeleting(false);
+    if (error) {
+      alert(`Failed to delete: ${error}`);
+      return;
+    }
+    setSelected(null);
+    setMessages([]);
+    loadAll();
   }
 
   return (
@@ -230,10 +253,18 @@ export function CommunicationsInbox() {
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold truncate">{selected.contact_name}</p>
                   <p className="text-xs text-muted-foreground truncate">{selected.contact_email}</p>
                 </div>
+                <button
+                  onClick={handleDeleteConversation}
+                  disabled={deleting}
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50"
+                  title="Delete conversation"
+                >
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[30rem]">
@@ -244,6 +275,7 @@ export function CommunicationsInbox() {
                 ) : (
                   messages.map((m) => <MessageBubble key={m.id} message={m} />)
                 )}
+                <div ref={messagesEndRef} />
               </div>
 
               <div className="border-t border-border p-3">

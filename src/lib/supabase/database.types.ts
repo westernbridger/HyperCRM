@@ -428,7 +428,7 @@ export type Database = {
           id: string
           user_id: string
           workspace_id: string
-          type: 'workspace_invitation' | 'role_changed' | 'workspace_created' | 'mention' | 'system'
+          type: 'workspace_invitation' | 'role_changed' | 'workspace_created' | 'mention' | 'system' | 'inbound_email'
           title: string
           content: string
           link: string | null
@@ -440,7 +440,7 @@ export type Database = {
           id?: string
           user_id: string
           workspace_id: string
-          type: 'workspace_invitation' | 'role_changed' | 'workspace_created' | 'mention' | 'system'
+          type: 'workspace_invitation' | 'role_changed' | 'workspace_created' | 'mention' | 'system' | 'inbound_email'
           title: string
           content: string
           link?: string | null
@@ -452,7 +452,7 @@ export type Database = {
           id?: string
           user_id?: string
           workspace_id?: string
-          type?: 'workspace_invitation' | 'role_changed' | 'workspace_created' | 'mention' | 'system'
+          type?: 'workspace_invitation' | 'role_changed' | 'workspace_created' | 'mention' | 'system' | 'inbound_email'
           title?: string
           content?: string
           link?: string | null

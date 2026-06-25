@@ -379,6 +379,25 @@ export async function getConversationMessages(
   return { data: (data as Message[]) ?? [], error: null }
 }
 
+// ── Delete a conversation and all its messages ───────────────────────────────
+
+export async function deleteConversation(
+  conversationId: string
+): Promise<{ error: string | null }> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { error: 'No workspace selected' }
+
+  const { error } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('id', conversationId)
+    .eq('workspace_id', workspaceId)
+
+  if (error) return { error: error.message }
+  revalidatePath('/communications')
+  return { error: null }
+}
+
 // ── Stats for the Communications header tiles ────────────────────────────────
 
 export async function getCommunicationStats(): Promise<{
