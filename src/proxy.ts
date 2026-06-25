@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
   "/change-password", // Must be accessible to show the form
   "/invite", // Invited users (no session yet) set their password here
   "/forms", // Public HyperForms fill + embed pages
+  "/checklists", // Public shared checklists with passcode access
   "/test", // Keep test page accessible for development
 ];
 

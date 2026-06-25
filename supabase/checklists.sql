@@ -26,6 +26,7 @@ create index if not exists checklists_workspace_idx on checklists(workspace_id);
 -- RLS
 alter table checklists enable row level security;
 
+drop policy if exists "workspace members can read checklists" on checklists;
 create policy "workspace members can read checklists"
   on checklists for select
   using (
@@ -36,6 +37,7 @@ create policy "workspace members can read checklists"
     )
   );
 
+drop policy if exists "admins can create checklists" on checklists;
 create policy "admins can create checklists"
   on checklists for insert
   with check (
@@ -47,6 +49,7 @@ create policy "admins can create checklists"
     )
   );
 
+drop policy if exists "admins can update checklists" on checklists;
 create policy "admins can update checklists"
   on checklists for update
   using (
@@ -58,6 +61,7 @@ create policy "admins can update checklists"
     )
   );
 
+drop policy if exists "admins can delete checklists" on checklists;
 create policy "admins can delete checklists"
   on checklists for delete
   using (
@@ -96,6 +100,7 @@ create index if not exists checklist_items_checklist_idx on checklist_items(chec
 -- RLS: workspace members can read; admins can write.
 alter table checklist_items enable row level security;
 
+drop policy if exists "workspace members can read checklist items" on checklist_items;
 create policy "workspace members can read checklist items"
   on checklist_items for select
   using (
@@ -107,6 +112,7 @@ create policy "workspace members can read checklist items"
     )
   );
 
+drop policy if exists "admins can manage checklist items" on checklist_items;
 create policy "admins can manage checklist items"
   on checklist_items for all
   using (
@@ -136,6 +142,7 @@ create index if not exists checklist_participants_checklist_idx on checklist_par
 -- RLS: public read (needed for public view via service role).
 alter table checklist_participants enable row level security;
 
+drop policy if exists "workspace members can read participants" on checklist_participants;
 create policy "workspace members can read participants"
   on checklist_participants for select
   using (
@@ -164,6 +171,7 @@ create index if not exists checklist_checks_participant_idx on checklist_checks(
 -- RLS
 alter table checklist_checks enable row level security;
 
+drop policy if exists "workspace members can read checks" on checklist_checks;
 create policy "workspace members can read checks"
   on checklist_checks for select
   using (
