@@ -14,6 +14,9 @@ interface ParsedInboundEmail {
   text: string;
   html?: string;
   messageId?: string; // provider's id for the inbound message
+  references?: string; // References header for threading
+  inReplyTo?: string; // In-Reply-To header for threading
+  attachments?: { filename: string; url: string; content_type: string; size: number }[];
 }
 
 export async function POST(req: NextRequest) {
@@ -196,19 +199,51 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Failed to resolve contact", { status: 500 });
     }
 
-    // ── Find or create the conversation ──────────────────────────────────────
-    let { data: conversation } = await supabase
-      .from("conversations")
-      .select("id")
-      .eq("workspace_id", workspaceId)
-      .eq("contact_id", contact.id)
-      .eq("channel", "email")
-      .eq("status", "open")
-      .order("last_message_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<{ id: string }>();
+    // ── Find or create the conversation (thread-aware) ──────────────────────
+    // Strategy 1: Match by References / In-Reply-To header → provider_message_id
+    // Strategy 2: Match by "Re:" subject prefix + same contact + open conversation
+    // Strategy 3: Create a new conversation
+    let conversationId: string | null = null;
 
-    if (!conversation) {
+    // Strategy 1: Look up by References or In-Reply-To
+    const refHeader = email.references || email.inReplyTo || "";
+    const refIds = refHeader.split(/\s+/).map((r) => r.trim()).filter(Boolean);
+    if (refIds.length > 0) {
+      // Try matching any of the referenced message IDs against stored messages
+      const { data: refMsg } = await supabase
+        .from("messages")
+        .select("conversation_id")
+        .in("provider_message_id", refIds)
+        .limit(1)
+        .maybeSingle<{ conversation_id: string }>();
+      if (refMsg) {
+        conversationId = refMsg.conversation_id;
+        console.log('[Inbound Email] Resolved conversation by References header');
+      }
+    }
+
+    // Strategy 2: Match by "Re:" subject + same contact + open conversation
+    if (!conversationId && /^re:\s*/i.test(email.subject)) {
+      const baseSubject = email.subject.replace(/^re:\s*/i, "").trim();
+      const { data: subjectMatch } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("contact_id", contact.id)
+        .eq("channel", "email")
+        .eq("status", "open")
+        .ilike("subject", `%${baseSubject}%`)
+        .order("last_message_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      if (subjectMatch) {
+        conversationId = subjectMatch.id;
+        console.log('[Inbound Email] Resolved conversation by Re: subject match');
+      }
+    }
+
+    // Strategy 3: Create new conversation
+    if (!conversationId) {
       const { data: created } = await supabase
         .from("conversations")
         .insert({
@@ -219,10 +254,11 @@ export async function POST(req: NextRequest) {
         })
         .select("id")
         .single<{ id: string }>();
-      conversation = created ?? null;
+      conversationId = created?.id ?? null;
+      console.log('[Inbound Email] Created new conversation');
     }
 
-    if (!conversation) {
+    if (!conversationId) {
       return new NextResponse("Failed to create conversation", { status: 500 });
     }
 
@@ -231,9 +267,9 @@ export async function POST(req: NextRequest) {
     if (!email.html && !email.text) {
       email.text = '(Email content is being processed. It will appear shortly.)';
     }
-    console.log('[Inbound Email] Storing message in conversation:', conversation.id, '| body_html:', email.html ? `${email.html.length} chars` : 'NULL', '| body_text:', email.text ? `${email.text.length} chars` : 'NULL');
+    console.log('[Inbound Email] Storing message in conversation:', conversationId, '| body_html:', email.html ? `${email.html.length} chars` : 'NULL', '| body_text:', email.text ? `${email.text.length} chars` : 'NULL');
     const { error: msgErr } = await supabase.from("messages").insert({
-      conversation_id: conversation.id,
+      conversation_id: conversationId,
       workspace_id: workspaceId,
       contact_id: contact.id,
       channel: "email",
@@ -246,6 +282,7 @@ export async function POST(req: NextRequest) {
       provider: "resend",
       provider_message_id: email.messageId ?? null,
       status: "received",
+      attachments: email.attachments ?? [],
       metadata: { source: "inbound-webhook" },
     });
 
@@ -260,7 +297,7 @@ export async function POST(req: NextRequest) {
     await supabase
       .from("conversations")
       .update({ last_message_at: new Date().toISOString() })
-      .eq("id", conversation.id);
+      .eq("id", conversationId);
 
     return new NextResponse("OK", { status: 200 });
   } catch (error) {
@@ -280,6 +317,16 @@ function normalizeEmail(body: any): Partial<ParsedInboundEmail> {
     text: d?.text || "",
     html: d?.html || "",
     messageId: d?.message_id || d?.email_id || d?.id,
+    references: d?.references || d?.headers?.references || "",
+    inReplyTo: d?.in_reply_to || d?.headers?.["in-reply-to"] || "",
+    attachments: Array.isArray(d?.attachments)
+      ? d.attachments.map((a: any) => ({
+          filename: a.filename || a.name || "attachment",
+          url: a.url || a.download_url || "",
+          content_type: a.content_type || a.contentType || "application/octet-stream",
+          size: a.size || 0,
+        })).filter((a: any) => a.url)
+      : [],
   };
 }
 

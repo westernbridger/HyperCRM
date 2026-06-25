@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Reply,
   Radio,
+  Paperclip,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MetricTile } from "@/components/dashboard/metric-tile";
@@ -315,6 +316,23 @@ function MessageBubble({ message }: { message: Message }) {
           />
         ) : (
           <p className="text-sm whitespace-pre-wrap break-words">{message.body_text}</p>
+        )}
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {message.attachments.map((a, i) => (
+              <a
+                key={i}
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg bg-background/50 border border-border px-2.5 py-1 text-xs hover:bg-background/80 transition-colors"
+              >
+                <Paperclip className="h-3 w-3 text-muted-foreground" />
+                <span className="max-w-[140px] truncate">{a.filename}</span>
+                {a.size > 0 && <span className="text-muted-foreground">{(a.size / 1024).toFixed(0)} KB</span>}
+              </a>
+            ))}
+          </div>
         )}
         <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <span>{formatRelative(message.created_at)}</span>

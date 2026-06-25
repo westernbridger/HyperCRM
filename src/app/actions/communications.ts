@@ -42,6 +42,7 @@ export type Message = {
   status: MessageStatus
   error: string | null
   metadata: Record<string, any>
+  attachments: { filename: string; url: string; content_type: string; size: number }[]
   created_by: string | null
   created_at: string
 }
@@ -110,6 +111,36 @@ function htmlToText(html: string): string {
     .trim()
 }
 
+// ── Upload an email attachment to storage ────────────────────────────────────
+
+export async function uploadEmailAttachment(
+  file: File
+): Promise<{ url: string | null; filename: string | null; contentType: string | null; size: number | null; error: string | null }> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { url: null, filename: null, contentType: null, size: null, error: 'No workspace selected' }
+
+  const max = 10 * 1024 * 1024 // 10 MB
+  if (file.size > max) return { url: null, filename: null, contentType: null, size: null, error: 'File too large (max 10 MB)' }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'bin'
+  const path = `${workspaceId}/email-attachment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('form-assets')
+    .upload(path, file, { cacheControl: '3600', upsert: false })
+
+  if (uploadError) return { url: null, filename: null, contentType: null, size: null, error: uploadError.message }
+
+  const { data } = supabase.storage.from('form-assets').getPublicUrl(path)
+  return {
+    url: data.publicUrl,
+    filename: file.name,
+    contentType: file.type || 'application/octet-stream',
+    size: file.size,
+    error: null,
+  }
+}
+
 // ── Send an email to a contact ───────────────────────────────────────────────
 
 export async function sendContactEmail(input: {
@@ -118,6 +149,7 @@ export async function sendContactEmail(input: {
   body: string
   bodyHtml?: boolean
   conversationId?: string
+  attachments?: { filename: string; url: string; content_type: string; size: number }[]
 }): Promise<{ messageId: string | null; error: string | null }> {
   const { supabase, workspaceId, userId } = await getContext()
   if (!workspaceId) return { messageId: null, error: 'No workspace selected' }
@@ -162,39 +194,26 @@ export async function sendContactEmail(input: {
   const bodyContent = resolveTemplate(bodyRaw, tplCtx)
 
   // 2. Resolve or create the conversation thread.
+  // If conversationId is provided (reply from inbox), use it.
+  // Otherwise, always create a NEW conversation — each email thread is separate.
   let conversationId = input.conversationId ?? null
   if (!conversationId) {
-    const { data: existing } = await supabase
+    const { data: created, error: convErr } = await supabase
       .from('conversations')
+      .insert({
+        workspace_id: workspaceId,
+        contact_id: contact.id,
+        channel: 'email',
+        subject,
+        created_by: userId,
+      })
       .select('id')
-      .eq('workspace_id', workspaceId)
-      .eq('contact_id', contact.id)
-      .eq('channel', 'email')
-      .eq('status', 'open')
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<{ id: string }>()
+      .single<{ id: string }>()
 
-    if (existing) {
-      conversationId = existing.id
-    } else {
-      const { data: created, error: convErr } = await supabase
-        .from('conversations')
-        .insert({
-          workspace_id: workspaceId,
-          contact_id: contact.id,
-          channel: 'email',
-          subject,
-          created_by: userId,
-        })
-        .select('id')
-        .single<{ id: string }>()
-
-      if (convErr || !created) {
-        return { messageId: null, error: convErr?.message ?? 'Failed to start conversation' }
-      }
-      conversationId = created.id
+    if (convErr || !created) {
+      return { messageId: null, error: convErr?.message ?? 'Failed to start conversation' }
     }
+    conversationId = created.id
   }
 
   // 3. Resolve the workspace's verified sender.
@@ -226,6 +245,7 @@ export async function sendContactEmail(input: {
       body_text: bodyTextContent,
       provider: 'resend',
       status: 'queued',
+      attachments: input.attachments ?? [],
       created_by: userId,
     })
     .select('id')
@@ -236,12 +256,13 @@ export async function sendContactEmail(input: {
   }
 
   // 5. Send via Resend, using the workspace sender when available.
-  const { sent, error: sendError } = await sendEmail({
+  const { sent, error: sendError, messageId } = await sendEmail({
     to: contact.email,
     subject,
     html,
     from: finalFrom,
     replyTo,
+    attachments: input.attachments?.map((a) => ({ filename: a.filename, path: a.url })),
   })
 
   // 6. Update message + conversation with the outcome.
@@ -250,6 +271,7 @@ export async function sendContactEmail(input: {
     .update({
       status: sent ? 'sent' : 'failed',
       error: sent ? null : sendError,
+      ...(sent && messageId ? { provider_message_id: messageId } : {}),
     })
     .eq('id', message.id)
 

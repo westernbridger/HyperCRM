@@ -630,6 +630,7 @@ export type Database = {
           status: MessageStatus
           error: string | null
           metadata: Record<string, any>
+          attachments: Record<string, any>[]
           created_by: string | null
           created_at: string
         }
@@ -650,6 +651,7 @@ export type Database = {
           status?: MessageStatus
           error?: string | null
           metadata?: Record<string, any>
+          attachments?: Record<string, any>[]
           created_by?: string | null
           created_at?: string
         }
@@ -670,6 +672,7 @@ export type Database = {
           status?: MessageStatus
           error?: string | null
           metadata?: Record<string, any>
+          attachments?: Record<string, any>[]
           created_by?: string | null
           created_at?: string
         }

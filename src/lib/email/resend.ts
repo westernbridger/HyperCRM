@@ -24,11 +24,14 @@ export interface SendEmailParams {
   from?: string
   // Optional reply-to address for inbound routing.
   replyTo?: string
+  // Optional attachments — Resend accepts a path/URL or base64 content.
+  attachments?: { filename: string; path?: string; content?: string }[]
 }
 
 export interface SendEmailResult {
   sent: boolean
   error: string | null
+  messageId?: string
 }
 
 /**
@@ -42,6 +45,7 @@ export async function sendEmail({
   html,
   from,
   replyTo,
+  attachments,
 }: SendEmailParams): Promise<SendEmailResult> {
   const resend = getResend()
   const fromAddress = from || FROM_ADDRESS
@@ -59,12 +63,15 @@ export async function sendEmail({
   }
 
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress,
       to,
       subject,
       html,
       ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(attachments && attachments.length > 0
+        ? { attachments: attachments.map((a) => ({ filename: a.filename, ...(a.path ? { path: a.path } : {}), ...(a.content ? { content: a.content } : {}) })) }
+        : {}),
     })
 
     if (error) {
@@ -72,7 +79,7 @@ export async function sendEmail({
       return { sent: false, error: error.message }
     }
 
-    return { sent: true, error: null }
+    return { sent: true, error: null, messageId: data?.id }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown email error'
     console.error('[email] Exception sending email:', message)

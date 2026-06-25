@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Loader2, Send, Mail, AlertCircle, ChevronDown } from "lucide-react";
+import { Loader2, Send, Mail, AlertCircle, ChevronDown, Paperclip, X, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { sendContactEmail } from "@/app/actions/communications";
+import { sendContactEmail, uploadEmailAttachment } from "@/app/actions/communications";
 import { RichTextEditor } from "./rich-text-editor";
 import { TEMPLATE_VARIABLES } from "@/lib/email/liquid";
 
@@ -44,13 +44,17 @@ export function ComposeEmailDialog({
   const [bodyHtml, setBodyHtml] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<{ filename: string; url: string; content_type: string; size: number }[]>([]);
+  const [uploading, setUploading] = useState(false);
   const subjectInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function reset() {
     setSubject(defaultSubject ?? "");
     setBodyHtml("");
     setError(null);
     setSending(false);
+    setAttachments([]);
   }
 
   function insertSubjectVariable(token: string) {
@@ -80,6 +84,7 @@ export function ComposeEmailDialog({
       body: bodyHtml,
       bodyHtml: true,
       conversationId,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     setSending(false);
 
@@ -158,12 +163,68 @@ export function ComposeEmailDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Message</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Message</Label>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending || uploading}
+                  className="flex items-center gap-1 text-[11px] font-medium text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+                >
+                  <Paperclip className="h-3 w-3" />
+                  Attach file
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length === 0) return;
+                    setUploading(true);
+                    for (const file of files) {
+                      const { url, filename, contentType, size, error: upErr } = await uploadEmailAttachment(file);
+                      if (upErr || !url || !filename) {
+                        setError(upErr ?? "Upload failed");
+                      } else {
+                        setAttachments((prev) => [...prev, { filename, url, content_type: contentType ?? "application/octet-stream", size: size ?? 0 }]);
+                      }
+                    }
+                    setUploading(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                />
+              </div>
               <RichTextEditor
                 value={bodyHtml}
                 onChange={setBodyHtml}
                 placeholder="Write your email… Use Insert Variable to personalize."
               />
+              {uploading && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Uploading…
+                </p>
+              )}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((a, i) => (
+                    <div key={i} className="flex items-center gap-1.5 rounded-lg bg-secondary/50 px-2.5 py-1 text-xs">
+                      <FileText className="h-3 w-3 text-muted-foreground" />
+                      <span className="max-w-[160px] truncate">{a.filename}</span>
+                      <span className="text-muted-foreground">{(a.size / 1024).toFixed(0)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="text-muted-foreground hover:text-red-400"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             {error && (
               <p className="flex items-center gap-1.5 text-xs text-red-500">

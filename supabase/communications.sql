@@ -54,9 +54,19 @@ create table if not exists messages (
                         check (status in ('queued','sent','delivered','opened','clicked','bounced','failed','received')),
   error               text,
   metadata            jsonb not null default '{}',
+  attachments         jsonb not null default '[]',  -- [{filename, url, content_type, size}]
   created_by          uuid references users(id) on delete set null,
   created_at          timestamptz not null default now()
 );
+
+-- Add attachments column if it doesn't exist (for existing installations)
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+    where table_name = 'messages' and column_name = 'attachments') then
+    alter table messages add column attachments jsonb not null default '[]';
+  end if;
+end $$;
 
 create index if not exists messages_conversation_idx on messages(conversation_id, created_at);
 create index if not exists messages_workspace_idx    on messages(workspace_id);
