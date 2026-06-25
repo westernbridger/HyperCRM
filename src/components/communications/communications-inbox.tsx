@@ -14,6 +14,7 @@ import {
   Paperclip,
   Trash2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +25,6 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { MetricTile } from "@/components/dashboard/metric-tile";
 import { ComposeEmailDialog } from "./compose-email-dialog";
 import { BroadcastDialog } from "./broadcast-dialog";
 import { BroadcastList } from "./broadcast-list";
@@ -58,11 +58,13 @@ type Stats = {
   delivered: number;
   opened: number;
   openRate: number;
+  inboundCount: number;
+  activeConversations: number;
 };
 
 export function CommunicationsInbox() {
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
-  const [stats, setStats] = useState<Stats>({ emailsSent: 0, delivered: 0, opened: 0, openRate: 0 });
+  const [stats, setStats] = useState<Stats>({ emailsSent: 0, delivered: 0, opened: 0, openRate: 0, inboundCount: 0, activeConversations: 0 });
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ConversationListItem | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -168,11 +170,13 @@ export function CommunicationsInbox() {
       </div>
 
       {/* Metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricTile title="Emails Sent" value={stats.emailsSent.toLocaleString()} change="All time" icon={Mail} />
-        <MetricTile title="Delivered" value={stats.delivered.toLocaleString()} change="All time" icon={CheckCheck} />
-        <MetricTile title="Opened" value={stats.opened.toLocaleString()} change="All time" icon={Inbox} />
-        <MetricTile title="Open Rate" value={`${stats.openRate}%`} change="Of delivered" icon={Send} />
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+        <GlassMetric icon={Mail} label="Sent" value={stats.emailsSent} />
+        <GlassMetric icon={Inbox} label="Inbound" value={stats.inboundCount} />
+        <GlassMetric icon={CheckCheck} label="Delivered" value={stats.delivered} />
+        <GlassMetric icon={Send} label="Opened" value={stats.opened} />
+        <GlassMetric icon={Reply} label="Open Rate" value={`${stats.openRate}%`} />
+        <GlassMetric icon={AlertCircle} label="Active" value={stats.activeConversations} />
       </div>
 
       <Tabs defaultValue="inbox">
@@ -194,7 +198,7 @@ export function CommunicationsInbox() {
 
         <TabsContent value="inbox" className="mt-4">
       {/* Inbox */}
-      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 rounded-xl border border-border bg-card overflow-hidden min-h-[28rem]">
+      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 rounded-xl glass overflow-hidden min-h-[28rem]">
         {/* Conversation list */}
         <div className={cn("border-r border-border", selected && "hidden lg:block")}>
           <div className="px-4 py-3 border-b border-border">
@@ -442,4 +446,20 @@ function formatRelative(iso: string): string {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d`;
   return d.toLocaleDateString();
+}
+
+function GlassMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string | number }) {
+  return (
+    <div className="glass glass-hover glass-sheen relative overflow-hidden rounded-xl p-3">
+      <div className="relative z-10 flex items-center gap-2.5">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Icon className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none mb-1">{label}</p>
+          <p className="text-base font-bold tracking-tight leading-none truncate">{value}</p>
+        </div>
+      </div>
+    </div>
+  );
 }

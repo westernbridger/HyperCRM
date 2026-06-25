@@ -405,9 +405,11 @@ export async function getCommunicationStats(): Promise<{
   delivered: number
   opened: number
   openRate: number
+  inboundCount: number
+  activeConversations: number
 }> {
   const { supabase, workspaceId } = await getContext()
-  if (!workspaceId) return { emailsSent: 0, delivered: 0, opened: 0, openRate: 0 }
+  if (!workspaceId) return { emailsSent: 0, delivered: 0, opened: 0, openRate: 0, inboundCount: 0, activeConversations: 0 }
 
   const { data } = await supabase
     .from('messages')
@@ -424,7 +426,23 @@ export async function getCommunicationStats(): Promise<{
   const opened = rows.filter((r) => ['opened', 'clicked'].includes(r.status)).length
   const openRate = delivered > 0 ? Math.round((opened / delivered) * 1000) / 10 : 0
 
-  return { emailsSent, delivered, opened, openRate }
+  // Inbound count
+  const { count: inboundCount } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'email')
+    .eq('direction', 'inbound')
+
+  // Active (open) conversations
+  const { count: activeConversations } = await supabase
+    .from('conversations')
+    .select('*', { count: 'exact', head: true })
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'email')
+    .eq('status', 'open')
+
+  return { emailsSent, delivered, opened, openRate, inboundCount: inboundCount ?? 0, activeConversations: activeConversations ?? 0 }
 }
 
 // ── Broadcast types ───────────────────────────────────────────────────────────
