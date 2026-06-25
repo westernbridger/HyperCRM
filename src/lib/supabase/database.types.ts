@@ -804,6 +804,57 @@ export type Database = {
         }
         Relationships: []
       }
+      segments: {
+        Row: {
+          id: string
+          workspace_id: string
+          name: string
+          description: string | null
+          color: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          name: string
+          description?: string | null
+          color?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          name?: string
+          description?: string | null
+          color?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      segment_contacts: {
+        Row: {
+          segment_id: string
+          contact_id: string
+          added_at: string
+        }
+        Insert: {
+          segment_id: string
+          contact_id: string
+          added_at?: string
+        }
+        Update: {
+          segment_id?: string
+          contact_id?: string
+          added_at?: string
+        }
+        Relationships: []
+      }
       checklists: {
         Row: {
           id: string
