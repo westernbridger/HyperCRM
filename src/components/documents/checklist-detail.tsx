@@ -23,8 +23,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { RichTextEditor } from "@/components/communications/rich-text-editor";
 import { cn } from "@/lib/utils";
 import {
   getChecklistById,
@@ -275,11 +275,10 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
                 className="text-lg font-semibold h-9"
                 placeholder="Checklist name"
               />
-              <Textarea
+              <RichTextEditor
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description (optional)"
-                className="text-sm resize-none h-16"
+                onChange={setDescription}
+                placeholder="Description (optional) — add details, formatting, links…"
               />
               <div className="flex items-center gap-4">
                 <div className="space-y-1">
@@ -307,7 +306,10 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
             <>
               <h2 className="text-lg font-semibold truncate">{data.name}</h2>
               {data.description && (
-                <p className="text-sm text-muted-foreground mt-0.5">{data.description}</p>
+                <div
+                  className="prose prose-sm prose-invert max-w-none text-muted-foreground mt-1 [&_p]:my-1 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_a]:text-indigo-400"
+                  dangerouslySetInnerHTML={{ __html: data.description }}
+                />
               )}
               <div className="flex items-center gap-3 mt-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
