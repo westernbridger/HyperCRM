@@ -19,6 +19,7 @@ import {
   User,
   Settings,
   Loader2,
+  Calendar,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -41,6 +42,7 @@ const navItems = [
   { label: "Leads", href: "/leads", icon: Target },
   { label: "Communications", href: "/communications", icon: MessageSquare },
   { label: "Documents", href: "/documents", icon: FileText },
+  { label: "Appointments", href: "/appointments", icon: Calendar },
   { label: "Automation", href: "/automation", icon: Workflow },
   { label: "Team", href: "/team", icon: Shield },
 ];

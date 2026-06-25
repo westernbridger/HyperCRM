@@ -975,6 +975,246 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_connections: {
+        Row: {
+          id: string
+          workspace_id: string
+          user_id: string
+          provider: string
+          email: string | null
+          access_token: string | null
+          refresh_token: string | null
+          token_expires_at: string | null
+          calendar_id: string | null
+          calendar_name: string | null
+          sync_enabled: boolean
+          last_synced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          user_id: string
+          provider?: string
+          email?: string | null
+          access_token?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          calendar_id?: string | null
+          calendar_name?: string | null
+          sync_enabled?: boolean
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          user_id?: string
+          provider?: string
+          email?: string | null
+          access_token?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          calendar_id?: string | null
+          calendar_name?: string | null
+          sync_enabled?: boolean
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      appointment_types: {
+        Row: {
+          id: string
+          workspace_id: string
+          user_id: string | null
+          name: string
+          description: string | null
+          meeting_type: string
+          duration_min: number
+          color: string | null
+          buffer_before_min: number
+          buffer_after_min: number
+          availability: Record<string, string[][]>
+          timezone: string
+          is_active: boolean
+          slug: string | null
+          min_notice_h: number
+          max_days_ahead: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          user_id?: string | null
+          name: string
+          description?: string | null
+          meeting_type?: string
+          duration_min?: number
+          color?: string | null
+          buffer_before_min?: number
+          buffer_after_min?: number
+          availability?: Record<string, string[][]>
+          timezone?: string
+          is_active?: boolean
+          slug?: string | null
+          min_notice_h?: number
+          max_days_ahead?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          user_id?: string | null
+          name?: string
+          description?: string | null
+          meeting_type?: string
+          duration_min?: number
+          color?: string | null
+          buffer_before_min?: number
+          buffer_after_min?: number
+          availability?: Record<string, string[][]>
+          timezone?: string
+          is_active?: boolean
+          slug?: string | null
+          min_notice_h?: number
+          max_days_ahead?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      appointments: {
+        Row: {
+          id: string
+          workspace_id: string
+          appointment_type_id: string | null
+          user_id: string | null
+          contact_id: string | null
+          title: string
+          description: string | null
+          meeting_type: string
+          status: string
+          start_time: string
+          end_time: string
+          location: string | null
+          meeting_url: string | null
+          phone_number: string | null
+          external_event_id: string | null
+          external_calendar_id: string | null
+          booked_via_link: boolean
+          booking_link_id: string | null
+          client_name: string | null
+          client_email: string | null
+          client_phone: string | null
+          notes: string | null
+          is_followup: boolean
+          parent_appointment_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          appointment_type_id?: string | null
+          user_id?: string | null
+          contact_id?: string | null
+          title: string
+          description?: string | null
+          meeting_type?: string
+          status?: string
+          start_time: string
+          end_time: string
+          location?: string | null
+          meeting_url?: string | null
+          phone_number?: string | null
+          external_event_id?: string | null
+          external_calendar_id?: string | null
+          booked_via_link?: boolean
+          booking_link_id?: string | null
+          client_name?: string | null
+          client_email?: string | null
+          client_phone?: string | null
+          notes?: string | null
+          is_followup?: boolean
+          parent_appointment_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          appointment_type_id?: string | null
+          user_id?: string | null
+          contact_id?: string | null
+          title?: string
+          description?: string | null
+          meeting_type?: string
+          status?: string
+          start_time?: string
+          end_time?: string
+          location?: string | null
+          meeting_url?: string | null
+          phone_number?: string | null
+          external_event_id?: string | null
+          external_calendar_id?: string | null
+          booked_via_link?: boolean
+          booking_link_id?: string | null
+          client_name?: string | null
+          client_email?: string | null
+          client_phone?: string | null
+          notes?: string | null
+          is_followup?: boolean
+          parent_appointment_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      booking_links: {
+        Row: {
+          id: string
+          workspace_id: string
+          user_id: string | null
+          slug: string
+          title: string
+          description: string | null
+          appointment_type_ids: string[]
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          user_id?: string | null
+          slug: string
+          title: string
+          description?: string | null
+          appointment_type_ids?: string[]
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          user_id?: string | null
+          slug?: string
+          title?: string
+          description?: string | null
+          appointment_type_ids?: string[]
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
