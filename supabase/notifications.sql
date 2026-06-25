@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    type TEXT NOT NULL CHECK (type IN ('workspace_invitation', 'role_changed', 'workspace_created', 'mention', 'system')),
+    type TEXT NOT NULL CHECK (type IN ('workspace_invitation', 'role_changed', 'workspace_created', 'mention', 'system', 'inbound_email')),
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     link TEXT,
@@ -19,6 +19,20 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 -- Enable RLS
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+-- Update type constraint to include 'inbound_email' (for existing installations)
+DO $$
+BEGIN
+  -- Drop old constraint if it exists and add the new one
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_name = 'notifications' AND constraint_name = 'notifications_type_check'
+  ) THEN
+    ALTER TABLE notifications DROP CONSTRAINT notifications_type_check;
+  END IF;
+END $$;
+ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
+  CHECK (type IN ('workspace_invitation', 'role_changed', 'workspace_created', 'mention', 'system', 'inbound_email'));
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);

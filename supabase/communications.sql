@@ -139,6 +139,18 @@ create policy "members create messages"
     )
   );
 
+-- Workspace members can delete conversations (and cascaded messages) in their workspace
+drop policy if exists "members delete conversations" on conversations;
+create policy "members delete conversations"
+  on conversations for delete
+  using (
+    exists (
+      select 1 from workspace_members wm
+      where wm.workspace_id = conversations.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
+
 -- ── updated_at trigger (reuses set_updated_at from hyperforms.sql) ────────────
 create or replace function set_updated_at()
 returns trigger language plpgsql as $$
