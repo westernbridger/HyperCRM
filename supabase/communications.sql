@@ -78,6 +78,7 @@ alter table conversations enable row level security;
 alter table messages      enable row level security;
 
 -- Workspace members can read conversations in their workspace
+drop policy if exists "members read conversations" on conversations;
 create policy "members read conversations"
   on conversations for select
   using (
@@ -89,6 +90,7 @@ create policy "members read conversations"
   );
 
 -- Workspace members can create conversations
+drop policy if exists "members create conversations" on conversations;
 create policy "members create conversations"
   on conversations for insert
   with check (
@@ -100,6 +102,7 @@ create policy "members create conversations"
   );
 
 -- Workspace members can update conversations (e.g. close a thread)
+drop policy if exists "members update conversations" on conversations;
 create policy "members update conversations"
   on conversations for update
   using (
@@ -111,6 +114,7 @@ create policy "members update conversations"
   );
 
 -- Workspace members can read messages in their workspace
+drop policy if exists "members read messages" on messages;
 create policy "members read messages"
   on messages for select
   using (
@@ -124,6 +128,7 @@ create policy "members read messages"
 -- Workspace members can insert messages.
 -- Outbound sends + inbound webhooks are written server-side via the
 -- service role (which bypasses RLS), so this policy covers in-app inserts.
+drop policy if exists "members create messages" on messages;
 create policy "members create messages"
   on messages for insert
   with check (

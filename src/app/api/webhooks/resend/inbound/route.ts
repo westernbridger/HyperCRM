@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
     // Resend's webhook only includes metadata — fetch the full body via API.
     // The content may not be immediately available, so retry with backoff.
     const emailId = (body?.data ?? body)?.email_id;
-    console.log('[Inbound Email] emailId:', emailId, '| hasApiKey:', !!env.resendApiKey, '| needsFetch:', !email.text || !email.html);
-    if (emailId && env.resendApiKey && (!email.text || !email.html)) {
+    console.log('[Inbound Email] emailId:', emailId, '| hasApiKey:', !!env.resendApiKey, '| needsFetch:', !email.text || !email.html || !email.attachments?.length);
+    if (emailId && env.resendApiKey && (!email.text || !email.html || !email.attachments?.length)) {
       const maxRetries = 3;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -103,7 +103,17 @@ export async function POST(req: NextRequest) {
             console.log('[Inbound Email] API response keys:', Object.keys(fullEmail));
             email.text = fullEmail.text || email.text;
             email.html = fullEmail.html || email.html;
-            console.log('[Inbound Email] After fetch — hasText:', !!email.text, 'hasHtml:', !!email.html);
+            // Extract attachments from the API response
+            if (Array.isArray(fullEmail.attachments) && fullEmail.attachments.length > 0) {
+              email.attachments = fullEmail.attachments.map((a: any) => ({
+                filename: a.filename || a.name || "attachment",
+                url: a.url || a.download_url || a.presigned_url || "",
+                content_type: a.content_type || a.contentType || "application/octet-stream",
+                size: a.size || 0,
+              })).filter((a: any) => a.url);
+              console.log('[Inbound Email] Fetched attachments:', email.attachments?.length, 'files');
+            }
+            console.log('[Inbound Email] After fetch — hasText:', !!email.text, 'hasHtml:', !!email.html, 'hasAttachments:', !!email.attachments?.length);
             break;
           } else {
             const errBody = await response.text();
