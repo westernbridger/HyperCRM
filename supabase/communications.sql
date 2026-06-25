@@ -139,6 +139,19 @@ create policy "members create messages"
     )
   );
 
+-- Workspace members can update messages in their workspace
+-- (e.g. updating status and provider_message_id after sending via Resend)
+drop policy if exists "members update messages" on messages;
+create policy "members update messages"
+  on messages for update
+  using (
+    exists (
+      select 1 from workspace_members wm
+      where wm.workspace_id = messages.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
+
 -- Workspace members can delete conversations (and cascaded messages) in their workspace
 drop policy if exists "members delete conversations" on conversations;
 create policy "members delete conversations"

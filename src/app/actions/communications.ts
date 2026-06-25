@@ -266,7 +266,7 @@ export async function sendContactEmail(input: {
   })
 
   // 6. Update message + conversation with the outcome.
-  await supabase
+  const { error: updateMsgErr } = await supabase
     .from('messages')
     .update({
       status: sent ? 'sent' : 'failed',
@@ -274,6 +274,12 @@ export async function sendContactEmail(input: {
       ...(sent && messageId ? { provider_message_id: messageId } : {}),
     })
     .eq('id', message.id)
+
+  if (updateMsgErr) {
+    console.error('[sendContactEmail] Failed to update message status/provider_message_id:', updateMsgErr.message)
+  } else if (sent && messageId) {
+    console.log('[sendContactEmail] Stored provider_message_id:', messageId)
+  }
 
   await supabase
     .from('conversations')
