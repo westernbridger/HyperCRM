@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
     // Resend's webhook only includes metadata — fetch the full body via API.
     // The content may not be immediately available, so retry with backoff.
     const emailId = (body?.data ?? body)?.email_id;
-    console.log('[Inbound Email] emailId:', emailId, '| hasApiKey:', !!env.resendApiKey, '| needsFetch:', !email.text || !email.html || !email.attachments?.length);
-    if (emailId && env.resendApiKey && (!email.text || !email.html || !email.attachments?.length)) {
+    console.log('[Inbound Email] emailId:', emailId, '| hasApiKey:', !!env.resendApiKey, '| needsFetch:', !email.text || !email.html);
+    if (emailId && env.resendApiKey && (!email.text || !email.html)) {
       const maxRetries = 3;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -103,17 +103,7 @@ export async function POST(req: NextRequest) {
             console.log('[Inbound Email] API response keys:', Object.keys(fullEmail));
             email.text = fullEmail.text || email.text;
             email.html = fullEmail.html || email.html;
-            // Extract attachments from the API response
-            if (Array.isArray(fullEmail.attachments) && fullEmail.attachments.length > 0) {
-              email.attachments = fullEmail.attachments.map((a: any) => ({
-                filename: a.filename || a.name || "attachment",
-                url: a.url || a.download_url || a.presigned_url || "",
-                content_type: a.content_type || a.contentType || "application/octet-stream",
-                size: a.size || 0,
-              })).filter((a: any) => a.url);
-              console.log('[Inbound Email] Fetched attachments:', email.attachments?.length, 'files');
-            }
-            console.log('[Inbound Email] After fetch — hasText:', !!email.text, 'hasHtml:', !!email.html, 'hasAttachments:', !!email.attachments?.length);
+            console.log('[Inbound Email] After fetch — hasText:', !!email.text, 'hasHtml:', !!email.html);
             break;
           } else {
             const errBody = await response.text();
@@ -272,6 +262,73 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Failed to create conversation", { status: 500 });
     }
 
+    // ── Process inbound attachments ─────────────────────────────────────────
+    // The webhook payload includes attachments with an `id` but no download URL.
+    // We need to call Resend's API to get each attachment's download_url,
+    // then download the file and upload to Supabase storage for permanent access.
+    const rawAttachments = (body?.data ?? body)?.attachments ?? [];
+    const processedAttachments: { filename: string; url: string; content_type: string; size: number }[] = [];
+
+    if (Array.isArray(rawAttachments) && rawAttachments.length > 0 && emailId && env.resendApiKey) {
+      console.log('[Inbound Email] Processing', rawAttachments.length, 'attachments');
+      for (const att of rawAttachments) {
+        try {
+          // 1. Get the download_url from Resend's API
+          const attResponse = await fetch(
+            `https://api.resend.com/emails/receiving/${emailId}/attachments/${att.id}`,
+            { headers: { Authorization: `Bearer ${env.resendApiKey}` } }
+          );
+          if (!attResponse.ok) {
+            console.error('[Inbound Email] Failed to fetch attachment metadata:', att.status, att.statusText);
+            continue;
+          }
+          const attData = await attResponse.json();
+          const downloadUrl = attData.download_url;
+          if (!downloadUrl) {
+            console.error('[Inbound Email] No download_url in attachment response');
+            continue;
+          }
+
+          // 2. Download the file content
+          const fileResponse = await fetch(downloadUrl);
+          if (!fileResponse.ok) {
+            console.error('[Inbound Email] Failed to download attachment file:', fileResponse.status);
+            continue;
+          }
+          const fileBuffer = await fileResponse.arrayBuffer();
+
+          // 3. Upload to Supabase storage
+          const filename = att.filename || att.name || "attachment";
+          const ext = filename.split('.').pop()?.toLowerCase() || 'bin';
+          const storagePath = `${workspaceId}/inbound-attachment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('form-assets')
+            .upload(storagePath, fileBuffer, {
+              contentType: att.content_type || 'application/octet-stream',
+              cacheControl: '3600',
+              upsert: false,
+            });
+
+          if (uploadError) {
+            console.error('[Inbound Email] Failed to upload attachment to storage:', uploadError.message);
+            continue;
+          }
+
+          const { data: urlData } = supabase.storage.from('form-assets').getPublicUrl(storagePath);
+          processedAttachments.push({
+            filename,
+            url: urlData.publicUrl,
+            content_type: att.content_type || 'application/octet-stream',
+            size: att.size || 0,
+          });
+          console.log('[Inbound Email] Stored attachment:', filename, '→', urlData.publicUrl);
+        } catch (attErr) {
+          console.error('[Inbound Email] Error processing attachment:', att.filename, attErr);
+        }
+      }
+    }
+
     // ── Store the inbound message ───────────────────────────────────────────
     // Fallback: if we couldn't fetch the body, store a placeholder.
     if (!email.html && !email.text) {
@@ -292,7 +349,7 @@ export async function POST(req: NextRequest) {
       provider: "resend",
       provider_message_id: email.messageId ?? null,
       status: "received",
-      attachments: email.attachments ?? [],
+      attachments: processedAttachments,
       metadata: { source: "inbound-webhook" },
     });
 
