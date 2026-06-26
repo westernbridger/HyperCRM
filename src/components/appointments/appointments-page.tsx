@@ -102,6 +102,7 @@ export function AppointmentsPage() {
   const [showNewLink, setShowNewLink] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [oauthError, setOauthError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -125,7 +126,20 @@ export function AppointmentsPage() {
   // Check for OAuth callback params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("connected") || params.get("error")) {
+    const errorParam = params.get("error");
+    const connectedParam = params.get("connected");
+    if (errorParam) {
+      const errorMessages: Record<string, string> = {
+        oauth_denied: "You denied the Google Calendar connection.",
+        oauth_failed: "Google OAuth failed — no code or state returned.",
+        invalid_state: "Invalid state parameter. Try connecting again.",
+        no_tokens: "Failed to get access tokens from Google.",
+        db_error: "Failed to save calendar connection to database.",
+        callback_exception: "An unexpected error occurred during Google OAuth.",
+      };
+      setOauthError(errorMessages[errorParam] ?? `OAuth error: ${errorParam}`);
+      window.history.replaceState({}, "", "/appointments");
+    } else if (connectedParam) {
       loadData();
       window.history.replaceState({}, "", "/appointments");
     }
@@ -205,6 +219,17 @@ export function AppointmentsPage() {
           New Appointment
         </Button>
       </div>
+
+      {/* OAuth error banner */}
+      {oauthError && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-red-500/20 bg-red-500/5">
+          <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
+          <p className="text-sm text-red-400 flex-1">{oauthError}</p>
+          <button onClick={() => setOauthError(null)} className="text-red-400 hover:text-red-300">
+            <XCircle className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Calendar connection banner */}
       {connections.length === 0 && !loading && (
