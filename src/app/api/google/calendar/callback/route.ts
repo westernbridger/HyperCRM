@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
 
     if (dbError) {
       console.error('DB error saving calendar connection:', dbError)
-      return NextResponse.redirect(new URL('/appointments?error=db_error', request.url))
+      const dbMsg = encodeURIComponent(dbError.message || JSON.stringify(dbError))
+      return NextResponse.redirect(new URL(`/appointments?error=db_error&detail=${dbMsg}`, request.url))
     }
 
     return NextResponse.redirect(new URL('/appointments?connected=google', request.url))
