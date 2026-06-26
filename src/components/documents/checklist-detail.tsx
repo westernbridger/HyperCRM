@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Edit3,
   Save,
@@ -420,16 +419,13 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
             </div>
           </div>
         ) : (
-          <AnimatePresence initial={false}>
+          <>
             {data.items.map((item, i) => {
               const checkers = checksByItem.get(item.id) ?? [];
               const isEditing = editingItemId === item.id;
               return (
-                <motion.div
+                <div
                   key={item.id}
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
                   className="rounded-xl border border-border bg-card px-4 py-3"
                 >
                   {isEditing ? (
@@ -564,10 +560,10 @@ export function ChecklistDetail({ checklistId, onDeleted }: ChecklistDetailProps
                       </button>
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
-          </AnimatePresence>
+          </>
         )}
 
         {/* Add item */}

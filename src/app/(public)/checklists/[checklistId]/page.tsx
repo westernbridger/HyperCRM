@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
   AlertCircle,
@@ -411,7 +410,6 @@ export default function PublicChecklistPage() {
 
         {/* Items */}
         <div className="space-y-2">
-          <AnimatePresence initial={false}>
             {data.items.map((item, i) => {
               const checkers = checksByItem.get(item.id) ?? [];
               const isCheckedByMe = myCheckedItems.has(item.id);
@@ -421,11 +419,8 @@ export default function PublicChecklistPage() {
               const isEditing = editingItemId === item.id;
 
               return (
-                <motion.div
+                <div
                   key={item.id}
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
                   className={cn(
                     "rounded-xl border px-4 py-3 transition-colors",
                     isCheckedByMe
@@ -584,10 +579,9 @@ export default function PublicChecklistPage() {
                       )}
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
-          </AnimatePresence>
 
           {data.items.length === 0 && (
             <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-border">
