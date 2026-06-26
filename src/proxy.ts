@@ -13,6 +13,7 @@ const PUBLIC_ROUTES = [
   "/forms", // Public HyperForms fill + embed pages
   "/checklists", // Public shared checklists with passcode access
   "/test", // Keep test page accessible for development
+  "/book", // Public booking pages
 ];
 
 // Routes that should always be accessible
