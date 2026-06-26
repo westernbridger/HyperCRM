@@ -118,130 +118,172 @@ create index if not exists idx_booking_links_slug on public.booking_links(slug);
 -- Calendar Connections: workspace members can manage their own connections
 alter table public.calendar_connections enable row level security;
 
+drop policy if exists "cc_select" on public.calendar_connections;
 create policy "cc_select" on public.calendar_connections
   for select using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = calendar_connections.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "cc_insert" on public.calendar_connections;
 create policy "cc_insert" on public.calendar_connections
   for insert with check (
     user_id = auth.uid() and
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = calendar_connections.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "cc_update" on public.calendar_connections;
 create policy "cc_update" on public.calendar_connections
-  for update using (user_id = auth.uid());
+  for update using (
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = calendar_connections.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
 
+drop policy if exists "cc_delete" on public.calendar_connections;
 create policy "cc_delete" on public.calendar_connections
-  for delete using (user_id = auth.uid());
+  for delete using (
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = calendar_connections.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
 
--- Appointment Types: workspace members can view, admins+ can manage
+-- Appointment Types: workspace members can manage
 alter table public.appointment_types enable row level security;
 
+drop policy if exists "at_select" on public.appointment_types;
 create policy "at_select" on public.appointment_types
   for select using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointment_types.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "at_insert" on public.appointment_types;
 create policy "at_insert" on public.appointment_types
   for insert with check (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointment_types.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "at_update" on public.appointment_types;
 create policy "at_update" on public.appointment_types
   for update using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointment_types.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "at_delete" on public.appointment_types;
 create policy "at_delete" on public.appointment_types
   for delete using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointment_types.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
--- Appointments: workspace members can view and manage
+-- Appointments: workspace members can manage
 alter table public.appointments enable row level security;
 
+drop policy if exists "ap_select" on public.appointments;
 create policy "ap_select" on public.appointments
   for select using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointments.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "ap_insert" on public.appointments;
 create policy "ap_insert" on public.appointments
   for insert with check (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointments.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "ap_update" on public.appointments;
 create policy "ap_update" on public.appointments
   for update using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointments.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "ap_delete" on public.appointments;
 create policy "ap_delete" on public.appointments
   for delete using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = appointments.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
--- Booking Links: workspace members can view and manage
+-- Booking Links: workspace members can manage
 alter table public.booking_links enable row level security;
 
+drop policy if exists "bl_select" on public.booking_links;
 create policy "bl_select" on public.booking_links
   for select using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = booking_links.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "bl_insert" on public.booking_links;
 create policy "bl_insert" on public.booking_links
   for insert with check (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = booking_links.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "bl_update" on public.booking_links;
 create policy "bl_update" on public.booking_links
   for update using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = booking_links.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
 
+drop policy if exists "bl_delete" on public.booking_links;
 create policy "bl_delete" on public.booking_links
   for delete using (
-    workspace_id in (
-      select wm.workspace_id from public.workspace_members wm
-      where wm.user_id = auth.uid()
+    exists (
+      select 1 from public.workspace_members wm
+      where wm.workspace_id = booking_links.workspace_id
+        and wm.user_id = auth.uid()
     )
   );
