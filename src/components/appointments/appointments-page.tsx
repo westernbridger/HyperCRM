@@ -1046,6 +1046,16 @@ function AppointmentTypeDialog({
   const [bufferAfter, setBufferAfter] = useState(0);
   const [minNotice, setMinNotice] = useState(2);
   const [maxAhead, setMaxAhead] = useState(30);
+  const [availability, setAvailability] = useState<Record<string, string[][]>>({
+    mon: [['09:00', '17:00']],
+    tue: [['09:00', '17:00']],
+    wed: [['09:00', '17:00']],
+    thu: [['09:00', '17:00']],
+    fri: [['09:00', '17:00']],
+    sat: [],
+    sun: [],
+  });
+  const [timezone, setTimezone] = useState('America/New_York');
   const [questions, setQuestions] = useState<BookingQuestion[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1061,6 +1071,11 @@ function AppointmentTypeDialog({
       setBufferAfter(editingType.buffer_after_min);
       setMinNotice(editingType.min_notice_h);
       setMaxAhead(editingType.max_days_ahead);
+      setAvailability(editingType.availability ?? {
+        mon: [['09:00', '17:00']], tue: [['09:00', '17:00']], wed: [['09:00', '17:00']],
+        thu: [['09:00', '17:00']], fri: [['09:00', '17:00']], sat: [], sun: [],
+      });
+      setTimezone(editingType.timezone ?? 'America/New_York');
       setQuestions(editingType.questions ?? []);
     }
   }, [editingType]);
@@ -1075,6 +1090,11 @@ function AppointmentTypeDialog({
     setBufferAfter(0);
     setMinNotice(2);
     setMaxAhead(30);
+    setAvailability({
+      mon: [['09:00', '17:00']], tue: [['09:00', '17:00']], wed: [['09:00', '17:00']],
+      thu: [['09:00', '17:00']], fri: [['09:00', '17:00']], sat: [], sun: [],
+    });
+    setTimezone('America/New_York');
     setQuestions([]);
     setError(null);
   }
@@ -1105,6 +1125,8 @@ function AppointmentTypeDialog({
       buffer_after_min: bufferAfter,
       min_notice_h: minNotice,
       max_days_ahead: maxAhead,
+      availability,
+      timezone,
       questions: questions.filter((q) => q.label.trim()),
     };
     let err: string | null = null;
@@ -1191,6 +1213,92 @@ function AppointmentTypeDialog({
             <div className="space-y-1.5">
               <Label className="text-xs">Max Days Ahead</Label>
               <Input type="number" value={maxAhead} onChange={(e) => setMaxAhead(Number(e.target.value))} min={1} />
+            </div>
+          </div>
+
+          {/* Weekly Availability */}
+          <div className="space-y-2 pt-2 border-t border-border">
+            <Label className="text-xs font-semibold">Weekly Availability</Label>
+            <p className="text-xs text-muted-foreground">Set which days and times clients can book.</p>
+            {(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const).map((day) => {
+              const dayLabel = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' }[day];
+              const ranges = availability[day] ?? [];
+              const isAvailable = ranges.length > 0;
+              return (
+                <div key={day} className="rounded-lg border border-border bg-secondary/30 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isAvailable}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAvailability({ ...availability, [day]: [['09:00', '17:00']] });
+                          } else {
+                            setAvailability({ ...availability, [day]: [] });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="font-medium">{dayLabel}</span>
+                    </label>
+                    {isAvailable && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setAvailability({ ...availability, [day]: [...ranges, ['09:00', '17:00']] })}
+                        className="h-6 gap-1 text-xs px-2"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add hours
+                      </Button>
+                    )}
+                  </div>
+                  {isAvailable && ranges.map((range, rIdx) => (
+                    <div key={rIdx} className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={range[0]}
+                        onChange={(e) => {
+                          const newRanges = ranges.map((r, i) => i === rIdx ? [e.target.value, r[1]] : r);
+                          setAvailability({ ...availability, [day]: newRanges });
+                        }}
+                        className="h-7 rounded border border-border bg-card px-2 text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">to</span>
+                      <input
+                        type="time"
+                        value={range[1]}
+                        onChange={(e) => {
+                          const newRanges = ranges.map((r, i) => i === rIdx ? [r[0], e.target.value] : r);
+                          setAvailability({ ...availability, [day]: newRanges });
+                        }}
+                        className="h-7 rounded border border-border bg-card px-2 text-xs"
+                      />
+                      {ranges.length > 1 && (
+                        <button
+                          onClick={() => setAvailability({ ...availability, [day]: ranges.filter((_, i) => i !== rIdx) })}
+                          className="text-muted-foreground hover:text-red-400 p-0.5"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Timezone</Label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                {['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Singapore', 'Australia/Sydney', 'UTC'].map((tz) => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
             </div>
           </div>
 
