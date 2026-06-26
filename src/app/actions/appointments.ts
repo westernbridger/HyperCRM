@@ -882,11 +882,13 @@ export async function bookAppointmentByLink(
 
   // Try to sync to Google Calendar
   try {
-    const { data: conn } = await supabase
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { data: conn } = await admin
       .from('calendar_connections')
       .select('*')
-      .eq('workspace_id', apptType.workspace_id)
-      .eq('user_id', apptType.user_id!)
+      .eq('workspace_id', workspaceId)
+      .eq('user_id', link.user_id ?? apptType.user_id)
       .eq('provider', 'google')
       .eq('sync_enabled', true)
       .maybeSingle()
@@ -912,7 +914,7 @@ export async function bookAppointmentByLink(
       )
 
       if (eventId) {
-        await supabase
+        await admin
           .from('appointments')
           .update({
             external_event_id: eventId,
@@ -995,8 +997,12 @@ export async function getAvailableSlotsBySlug(
 
   if (!apptType) return { data: null, error: 'Appointment type not found' }
 
+  // Use admin client for calendar connection and busy times (public booking, no auth)
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+
   // Get calendar connection for busy times
-  const { data: conn } = await supabase
+  const { data: conn } = await admin
     .from('calendar_connections')
     .select('*')
     .eq('workspace_id', workspaceId)
@@ -1005,7 +1011,7 @@ export async function getAvailableSlotsBySlug(
     .maybeSingle()
 
   // Get existing appointments in range
-  const { data: existingAppts } = await supabase
+  const { data: existingAppts } = await admin
     .from('appointments')
     .select('start_time, end_time, status')
     .eq('workspace_id', workspaceId)

@@ -68,7 +68,7 @@ create table if not exists public.appointments (
   external_calendar_id text,
   -- Booking source
   booked_via_link    boolean not null default false,
-  booking_link_id    uuid references public.appointment_types(id) on delete set null,
+  booking_link_id    uuid references public.booking_links(id) on delete set null,
   -- Client info (if not a CRM contact)
   client_name        text,
   client_email       text,
@@ -99,6 +99,12 @@ create table if not exists public.booking_links (
 );
 
 -- ── Indexes ─────────────────────────────────────────────────────────────────
+
+-- Fix FK: booking_link_id should reference booking_links, not appointment_types
+alter table public.appointments drop constraint if exists appointments_booking_link_id_fkey;
+alter table public.appointments add constraint appointments_booking_link_id_fkey
+  foreign key (booking_link_id) references public.booking_links(id) on delete set null;
+
 create index if not exists idx_calendar_conn_ws on public.calendar_connections(workspace_id);
 create index if not exists idx_calendar_conn_user on public.calendar_connections(user_id);
 create index if not exists idx_appt_types_ws on public.appointment_types(workspace_id);
