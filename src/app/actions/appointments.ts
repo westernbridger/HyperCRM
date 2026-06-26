@@ -342,6 +342,18 @@ export async function createAppointment(input: {
 
   const appointment = data as unknown as Appointment
 
+  // Log activity if contact is linked
+  if (input.contact_id) {
+    await supabase.from('activities').insert({
+      contact_id: input.contact_id,
+      workspace_id: workspaceId,
+      type: 'meeting',
+      title: `Appointment scheduled: ${input.title}`,
+      content: `${new Date(input.start_time).toLocaleString()} (${input.meeting_type ?? 'video'})`,
+      created_by: userId,
+    })
+  }
+
   // Try to sync to Google Calendar
   try {
     const { data: conn } = await supabase
@@ -403,6 +415,69 @@ export async function createAppointment(input: {
   }
 
   return { data: appointment, error: null }
+}
+
+export async function updateAppointment(
+  id: string,
+  updates: {
+    title?: string
+    start_time?: string
+    end_time?: string
+    meeting_type?: 'video' | 'phone' | 'in_person'
+    location?: string
+    meeting_url?: string
+    phone_number?: string
+    client_name?: string
+    client_email?: string
+    client_phone?: string
+    notes?: string
+    status?: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
+  }
+): Promise<{ error: string | null }> {
+  const { supabase, workspaceId, userId } = await getContext()
+  if (!workspaceId) return { error: 'Not authenticated' }
+
+  const updateFields: Record<string, any> = {}
+  if (updates.title !== undefined) updateFields.title = updates.title
+  if (updates.start_time !== undefined) updateFields.start_time = updates.start_time
+  if (updates.end_time !== undefined) updateFields.end_time = updates.end_time
+  if (updates.meeting_type !== undefined) updateFields.meeting_type = updates.meeting_type
+  if (updates.location !== undefined) updateFields.location = updates.location
+  if (updates.meeting_url !== undefined) updateFields.meeting_url = updates.meeting_url
+  if (updates.phone_number !== undefined) updateFields.phone_number = updates.phone_number
+  if (updates.client_name !== undefined) updateFields.client_name = updates.client_name
+  if (updates.client_email !== undefined) updateFields.client_email = updates.client_email
+  if (updates.client_phone !== undefined) updateFields.client_phone = updates.client_phone
+  if (updates.notes !== undefined) updateFields.notes = updates.notes
+  if (updates.status !== undefined) updateFields.status = updates.status
+
+  const { error } = await supabase
+    .from('appointments')
+    .update(updateFields as any)
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+
+  if (error) return { error: error.message }
+
+  // Log activity if contact is linked
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('contact_id, title, start_time')
+    .eq('id', id)
+    .single()
+
+  if (appt?.contact_id) {
+    await supabase.from('activities').insert({
+      contact_id: appt.contact_id,
+      workspace_id: workspaceId,
+      type: 'meeting',
+      title: `Appointment updated: ${appt.title}`,
+      content: `Rescheduled to ${new Date(appt.start_time).toLocaleString()}`,
+      created_by: userId,
+    })
+  }
+
+  return { error: null }
 }
 
 export async function updateAppointmentStatus(

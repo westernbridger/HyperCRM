@@ -57,6 +57,7 @@ import {
   getAppointments,
   createAppointment,
   updateAppointmentStatus,
+  updateAppointment,
   deleteAppointment,
   getBookingLinks,
   createBookingLink,
@@ -100,6 +101,7 @@ export function AppointmentsPage() {
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [showNewType, setShowNewType] = useState(false);
   const [showNewLink, setShowNewLink] = useState(false);
+  const [editAppt, setEditAppt] = useState<Appointment | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState<string | null>(null);
@@ -379,6 +381,7 @@ export function AppointmentsPage() {
                         return (
                           <div
                             key={appt.id}
+                            onClick={() => setEditAppt(appt)}
                             className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] bg-indigo-500/10 border border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20"
                             style={{ borderLeftColor: appt.type_color ?? "#6366f1", borderLeftWidth: 2 }}
                           >
@@ -423,6 +426,7 @@ export function AppointmentsPage() {
                 <AppointmentRow
                   key={appt.id}
                   appt={appt}
+                  onClick={() => setEditAppt(appt)}
                   onStatusChange={async (status) => {
                     await updateAppointmentStatus(appt.id, status);
                     loadData();
@@ -635,6 +639,23 @@ export function AppointmentsPage() {
           }}
         />
       )}
+
+      {/* Edit Appointment Dialog */}
+      {editAppt && (
+        <EditAppointmentDialog
+          appt={editAppt}
+          open={!!editAppt}
+          onOpenChange={(o) => { if (!o) setEditAppt(null); }}
+          onSaved={() => {
+            setEditAppt(null);
+            loadData();
+          }}
+          onDeleted={() => {
+            setEditAppt(null);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -645,17 +666,22 @@ function AppointmentRow({
   appt,
   onStatusChange,
   onDelete,
+  onClick,
 }: {
   appt: Appointment;
   onStatusChange: (status: "confirmed" | "cancelled" | "completed" | "no_show") => void;
   onDelete: () => void;
+  onClick?: () => void;
 }) {
   const Icon = MEETING_TYPE_ICONS[appt.meeting_type] ?? Video;
   const startDate = new Date(appt.start_time);
   const endDate = new Date(appt.end_time);
 
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
+    <div
+      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 cursor-pointer hover:bg-muted/20"
+      onClick={onClick}
+    >
       {/* Date block */}
       <div className="flex flex-col items-center justify-center w-14 shrink-0">
         <span className="text-[10px] font-medium uppercase text-muted-foreground">
@@ -758,6 +784,7 @@ function NewAppointmentDialog({
   const [clientEmail, setClientEmail] = useState("");
   const [location, setLocation] = useState("");
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [useCustomLink, setUseCustomLink] = useState(false);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -773,6 +800,7 @@ function NewAppointmentDialog({
     setClientEmail("");
     setLocation("");
     setMeetingUrl("");
+    setUseCustomLink(false);
     setNotes("");
     setError(null);
   }
@@ -891,8 +919,37 @@ function NewAppointmentDialog({
 
           {meetingType === "video" && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Meeting URL</Label>
-              <Input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="https://meet.google.com/..." />
+              {!useCustomLink ? (
+                <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Video className="h-4 w-4 text-indigo-400" />
+                    <span className="text-xs text-muted-foreground">
+                      Google Meet link will be auto-generated
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUseCustomLink(true)}
+                    className="text-xs text-indigo-400 hover:text-indigo-300"
+                  >
+                    Use custom link
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Custom Meeting URL</Label>
+                    <button
+                      type="button"
+                      onClick={() => { setUseCustomLink(false); setMeetingUrl(""); }}
+                      className="text-xs text-indigo-400 hover:text-indigo-300"
+                    >
+                      Use Google Meet instead
+                    </button>
+                  </div>
+                  <Input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="https://zoom.us/j/..." />
+                </div>
+              )}
             </div>
           )}
           {meetingType === "in_person" && (
@@ -1165,6 +1222,189 @@ function NewBookingLinkDialog({
           <Button onClick={handleSave} disabled={saving} className="gap-2">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Edit Appointment Dialog ──────────────────────────────────────────────────
+
+function EditAppointmentDialog({
+  appt,
+  open,
+  onOpenChange,
+  onSaved,
+  onDeleted,
+}: {
+  appt: Appointment;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const startDate = new Date(appt.start_time);
+  const endDate = new Date(appt.end_time);
+
+  const [title, setTitle] = useState(appt.title);
+  const [meetingType, setMeetingType] = useState(appt.meeting_type);
+  const [date, setDate] = useState(startDate.toISOString().slice(0, 10));
+  const [startTime, setStartTime] = useState(
+    startDate.toTimeString().slice(0, 5)
+  );
+  const [duration, setDuration] = useState(
+    Math.round((endDate.getTime() - startDate.getTime()) / 60000)
+  );
+  const [clientName, setClientName] = useState(appt.client_name ?? "");
+  const [clientEmail, setClientEmail] = useState(appt.client_email ?? "");
+  const [location, setLocation] = useState(appt.location ?? "");
+  const [meetingUrl, setMeetingUrl] = useState(appt.meeting_url ?? "");
+  const [notes, setNotes] = useState(appt.notes ?? "");
+  const [status, setStatus] = useState(appt.status);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!title.trim()) return setError("Enter a title.");
+    if (!date) return setError("Select a date.");
+
+    const start = new Date(`${date}T${startTime}`);
+    const end = new Date(start.getTime() + duration * 60 * 1000);
+
+    setSaving(true);
+    setError(null);
+
+    const { error } = await updateAppointment(appt.id, {
+      title,
+      meeting_type: meetingType,
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      client_name: clientName || undefined,
+      client_email: clientEmail || undefined,
+      location: location || undefined,
+      meeting_url: meetingUrl || undefined,
+      notes: notes || undefined,
+      status,
+    });
+
+    setSaving(false);
+    if (error) return setError(error);
+    onSaved();
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    await deleteAppointment(appt.id);
+    setDeleting(false);
+    onDeleted();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Appointment</DialogTitle>
+          <DialogDescription>Update or reschedule this appointment.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {error && (
+            <p className="flex items-center gap-1.5 text-xs text-red-500">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {error}
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Meeting Type</Label>
+              <select
+                value={meetingType}
+                onChange={(e) => setMeetingType(e.target.value as any)}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                <option value="video">Video</option>
+                <option value="phone">Phone</option>
+                <option value="in_person">In Person</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as any)}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">No Show</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Date</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Start Time</Label>
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Duration (min)</Label>
+              <Input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={5} step={5} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Client Name</Label>
+              <Input value={clientName} onChange={(e) => setClientName(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Client Email</Label>
+              <Input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+            </div>
+          </div>
+
+          {meetingType === "video" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Meeting URL</Label>
+              <Input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="Auto-generated Google Meet link" />
+            </div>
+          )}
+          {meetingType === "in_person" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Location</Label>
+              <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={handleDelete} disabled={deleting} className="gap-2 text-red-400 mr-auto">
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Delete
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving} className="gap-2">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save Changes
           </Button>
         </DialogFooter>
       </DialogContent>
