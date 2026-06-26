@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { exchangeCodeForTokens, getPrimaryCalendar } from '@/lib/google/calendar'
 
 export async function GET(request: NextRequest) {
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
     // Get primary calendar info
     const primaryCal = await getPrimaryCalendar(tokens.access_token, tokens.refresh_token)
 
-    // Store in database
-    const supabase = await createClient()
+    // Store in database using admin client (bypasses RLS since OAuth redirect doesn't carry session cookies)
+    const supabase = createAdminClient()
     const { error: dbError } = await supabase
       .from('calendar_connections')
       .upsert({
