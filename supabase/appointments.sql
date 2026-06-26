@@ -42,6 +42,8 @@ create table if not exists public.appointment_types (
   slug          text,                          -- URL slug for booking link
   min_notice_h  int not null default 2,        -- minimum hours before a slot
   max_days_ahead int not null default 30,      -- how far in advance clients can book
+  -- Custom questions for the booking form: [{ "id": "uuid", "label": "What is your budget?", "type": "text" | "textarea" | "select", "required": false, "options": ["a","b"] }]
+  questions     jsonb not null default '[]'::jsonb,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -73,6 +75,8 @@ create table if not exists public.appointments (
   client_name        text,
   client_email       text,
   client_phone       text,
+  -- Answers to custom booking questions: [{ "question_id": "uuid", "label": "...", "answer": "..." }]
+  booking_answers    jsonb,
   -- Notes & follow-up
   notes              text,
   is_followup        boolean not null default false,
@@ -104,6 +108,12 @@ create table if not exists public.booking_links (
 alter table public.appointments drop constraint if exists appointments_booking_link_id_fkey;
 alter table public.appointments add constraint appointments_booking_link_id_fkey
   foreign key (booking_link_id) references public.booking_links(id) on delete set null;
+
+-- Add questions column to appointment_types for existing databases
+alter table public.appointment_types add column if not exists questions jsonb not null default '[]'::jsonb;
+
+-- Add booking_answers column to appointments for existing databases
+alter table public.appointments add column if not exists booking_answers jsonb;
 
 create index if not exists idx_calendar_conn_ws on public.calendar_connections(workspace_id);
 create index if not exists idx_calendar_conn_user on public.calendar_connections(user_id);

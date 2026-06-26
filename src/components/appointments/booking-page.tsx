@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   getBookingLinkBySlug,
@@ -24,6 +25,7 @@ import {
   bookAppointmentByLink,
   type AppointmentType,
   type BookingLink,
+  type BookingQuestion,
 } from "@/app/actions/appointments";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -58,6 +60,8 @@ export function BookingPage({ slug }: { slug: string }) {
   const [clientPhone, setClientPhone] = useState("");
   const [booking, setBooking] = useState(false);
   const [booked, setBooked] = useState(false);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
+  const [showQuestions, setShowQuestions] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -72,6 +76,7 @@ export function BookingPage({ slug }: { slug: string }) {
       // If only one type, auto-select it
       if (data.types.length === 1) {
         setSelectedType(data.types[0]);
+        setShowQuestions((data.types[0].questions ?? []).length > 0);
       }
       setLoading(false);
     })();
@@ -115,6 +120,11 @@ export function BookingPage({ slug }: { slug: string }) {
       client_email: clientEmail,
       client_phone: clientPhone || undefined,
       appointment_type_id: selectedType.id,
+      booking_answers: (selectedType.questions ?? []).map((q) => ({
+        question_id: q.id,
+        label: q.label,
+        answer: questionAnswers[q.id] ?? "",
+      })).filter((a) => a.answer),
     });
     setBooking(false);
     if (error) {
@@ -126,7 +136,7 @@ export function BookingPage({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -134,7 +144,7 @@ export function BookingPage({ slug }: { slug: string }) {
 
   if (error || !link) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
         <AlertCircle className="h-10 w-10 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">{error || "Booking link not found"}</p>
       </div>
@@ -143,7 +153,7 @@ export function BookingPage({ slug }: { slug: string }) {
 
   if (booked && selectedType) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 px-4">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
           <Check className="h-8 w-8 text-emerald-400" />
         </div>
@@ -172,7 +182,7 @@ export function BookingPage({ slug }: { slug: string }) {
   // Step 0: Select appointment type (if multiple)
   if (!selectedType) {
     return (
-      <div className="min-h-screen bg-background py-8 px-4">
+      <div className="min-h-[60vh] bg-background py-8 px-4">
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="text-center space-y-2">
             <h1 className="text-xl font-bold">{link.title}</h1>
@@ -193,7 +203,11 @@ export function BookingPage({ slug }: { slug: string }) {
                 return (
                   <button
                     key={t.id}
-                    onClick={() => setSelectedType(t)}
+                    onClick={() => {
+                      setSelectedType(t);
+                      setShowQuestions((t.questions ?? []).length > 0);
+                      setQuestionAnswers({});
+                    }}
                     className="w-full flex items-center gap-4 rounded-xl border border-border bg-card p-4 text-left hover:bg-muted/20 transition-colors"
                   >
                     <div
@@ -248,13 +262,13 @@ export function BookingPage({ slug }: { slug: string }) {
   const maxDate = new Date(today.getTime() + selectedType.max_days_ahead * 24 * 60 * 60 * 1000);
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
+    <div className="min-h-[60vh] bg-background py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
           {types.length > 1 && (
             <button
-              onClick={() => { setSelectedType(null); setSelectedDate(null); setSelectedSlot(null); }}
+              onClick={() => { setSelectedType(null); setSelectedDate(null); setSelectedSlot(null); setShowQuestions(false); }}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2"
             >
               <ArrowLeft className="h-3 w-3" />
@@ -283,7 +297,55 @@ export function BookingPage({ slug }: { slug: string }) {
           </div>
         </div>
 
-        {/* Step 1: Select date */}
+        {/* Step 1: Custom questions (if any) */}
+        {showQuestions && (selectedType.questions ?? []).length > 0 && (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+            <h2 className="text-sm font-semibold">Quick Questions</h2>
+            {(selectedType.questions ?? []).map((q) => (
+              <div key={q.id} className="space-y-1.5">
+                <Label className="text-xs">
+                  {q.label}
+                      {q.required && <span className="text-red-400 ml-0.5">*</span>}
+                </Label>
+                {q.type === "textarea" ? (
+                  <Textarea
+                    value={questionAnswers[q.id] ?? ""}
+                    onChange={(e) => setQuestionAnswers({ ...questionAnswers, [q.id]: e.target.value })}
+                    placeholder="Your answer"
+                    rows={3}
+                  />
+                ) : q.type === "select" ? (
+                  <select
+                    value={questionAnswers[q.id] ?? ""}
+                    onChange={(e) => setQuestionAnswers({ ...questionAnswers, [q.id]: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                  >
+                    <option value="">Select an option</option>
+                    {(q.options ?? []).map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    value={questionAnswers[q.id] ?? ""}
+                    onChange={(e) => setQuestionAnswers({ ...questionAnswers, [q.id]: e.target.value })}
+                    placeholder="Your answer"
+                  />
+                )}
+              </div>
+            ))}
+            <Button
+              onClick={() => setShowQuestions(false)}
+              disabled={(selectedType.questions ?? []).some((q) => q.required && !(questionAnswers[q.id] ?? "").trim())}
+              className="w-full gap-2"
+            >
+              Continue
+            </Button>
+          </div>
+        )}
+
+        {/* Step 2: Select date */}
+        {(!showQuestions || (selectedType.questions ?? []).length === 0) && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border">
             <h2 className="text-sm font-semibold">Select a date</h2>
@@ -345,8 +407,9 @@ export function BookingPage({ slug }: { slug: string }) {
             })}
           </div>
         </div>
+        )}
 
-        {/* Step 2: Select time slot */}
+        {/* Step 3: Select time slot */}
         {selectedDate && (
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <h2 className="text-sm font-semibold">
@@ -381,7 +444,7 @@ export function BookingPage({ slug }: { slug: string }) {
           </div>
         )}
 
-        {/* Step 3: Enter details */}
+        {/* Step 4: Enter details */}
         {selectedSlot && (
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <h2 className="text-sm font-semibold">Your details</h2>

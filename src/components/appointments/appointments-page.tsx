@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ import {
   disconnectCalendar,
   getAppointmentTypes,
   createAppointmentType,
+  updateAppointmentType,
   deleteAppointmentType,
   getAppointments,
   createAppointment,
@@ -66,6 +68,7 @@ import {
   type AppointmentType,
   type Appointment,
   type BookingLink,
+  type BookingQuestion,
 } from "@/app/actions/appointments";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -100,6 +103,7 @@ export function AppointmentsPage() {
   // Dialogs
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [showNewType, setShowNewType] = useState(false);
+  const [editType, setEditType] = useState<AppointmentType | null>(null);
   const [showNewLink, setShowNewLink] = useState(false);
   const [editAppt, setEditAppt] = useState<Appointment | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -484,6 +488,13 @@ export function AppointmentsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
+                          className="gap-2"
+                          onClick={() => setEditType(type)}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           className="text-red-400 gap-2"
                           onClick={async () => {
                             await deleteAppointmentType(type.id);
@@ -639,11 +650,24 @@ export function AppointmentsPage() {
 
       {/* New Appointment Type Dialog */}
       {showNewType && (
-        <NewAppointmentTypeDialog
+        <AppointmentTypeDialog
           open={showNewType}
           onOpenChange={setShowNewType}
-          onCreated={() => {
+          onSaved={() => {
             setShowNewType(false);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Edit Appointment Type Dialog */}
+      {editType && (
+        <AppointmentTypeDialog
+          open={true}
+          onOpenChange={(o) => { if (!o) setEditType(null); }}
+          editingType={editType}
+          onSaved={() => {
+            setEditType(null);
             loadData();
           }}
         />
@@ -999,17 +1023,20 @@ function NewAppointmentDialog({
   );
 }
 
-// ── New Appointment Type Dialog ──────────────────────────────────────────────
+// ── Appointment Type Dialog (Create + Edit) ─────────────────────────────────
 
-function NewAppointmentTypeDialog({
+function AppointmentTypeDialog({
   open,
   onOpenChange,
-  onCreated,
+  onSaved,
+  editingType,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  onSaved: () => void;
+  editingType?: AppointmentType | null;
 }) {
+  const isEdit = !!editingType;
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [meetingType, setMeetingType] = useState<"video" | "phone" | "in_person">("video");
@@ -1019,8 +1046,24 @@ function NewAppointmentTypeDialog({
   const [bufferAfter, setBufferAfter] = useState(0);
   const [minNotice, setMinNotice] = useState(2);
   const [maxAhead, setMaxAhead] = useState(30);
+  const [questions, setQuestions] = useState<BookingQuestion[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editingType) {
+      setName(editingType.name);
+      setDescription(editingType.description ?? "");
+      setMeetingType(editingType.meeting_type);
+      setDuration(editingType.duration_min);
+      setColor(editingType.color ?? "#6366f1");
+      setBufferBefore(editingType.buffer_before_min);
+      setBufferAfter(editingType.buffer_after_min);
+      setMinNotice(editingType.min_notice_h);
+      setMaxAhead(editingType.max_days_ahead);
+      setQuestions(editingType.questions ?? []);
+    }
+  }, [editingType]);
 
   function reset() {
     setName("");
@@ -1032,14 +1075,27 @@ function NewAppointmentTypeDialog({
     setBufferAfter(0);
     setMinNotice(2);
     setMaxAhead(30);
+    setQuestions([]);
     setError(null);
+  }
+
+  function addQuestion() {
+    setQuestions([...questions, { id: crypto.randomUUID(), label: "", type: "text", required: false }]);
+  }
+
+  function updateQuestion(idx: number, updates: Partial<BookingQuestion>) {
+    setQuestions(questions.map((q, i) => (i === idx ? { ...q, ...updates } : q)));
+  }
+
+  function removeQuestion(idx: number) {
+    setQuestions(questions.filter((_, i) => i !== idx));
   }
 
   async function handleSave() {
     if (!name.trim()) return setError("Enter a name.");
     setSaving(true);
     setError(null);
-    const { error } = await createAppointmentType({
+    const payload = {
       name,
       description: description || undefined,
       meeting_type: meetingType,
@@ -1049,18 +1105,27 @@ function NewAppointmentTypeDialog({
       buffer_after_min: bufferAfter,
       min_notice_h: minNotice,
       max_days_ahead: maxAhead,
-    });
+      questions: questions.filter((q) => q.label.trim()),
+    };
+    let err: string | null = null;
+    if (isEdit && editingType) {
+      const { error } = await updateAppointmentType(editingType.id, payload as any);
+      err = error;
+    } else {
+      const { error } = await createAppointmentType(payload as any);
+      err = error;
+    }
     setSaving(false);
-    if (error) return setError(error);
-    reset();
-    onCreated();
+    if (err) return setError(err);
+    if (!isEdit) reset();
+    onSaved();
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o && !isEdit) reset(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New Appointment Type</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Appointment Type" : "New Appointment Type"}</DialogTitle>
           <DialogDescription>Configure a meeting type that clients can book.</DialogDescription>
         </DialogHeader>
 
@@ -1128,13 +1193,73 @@ function NewAppointmentTypeDialog({
               <Input type="number" value={maxAhead} onChange={(e) => setMaxAhead(Number(e.target.value))} min={1} />
             </div>
           </div>
+
+          {/* Custom Questions */}
+          <div className="space-y-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Booking Form Questions</Label>
+              <Button variant="ghost" size="sm" onClick={addQuestion} className="h-7 gap-1 text-xs">
+                <Plus className="h-3 w-3" />
+                Add Question
+              </Button>
+            </div>
+            {questions.length === 0 && (
+              <p className="text-xs text-muted-foreground">No custom questions. Clients will just enter name, email, and phone.</p>
+            )}
+            {questions.map((q, idx) => (
+              <div key={q.id} className="rounded-lg border border-border bg-secondary/30 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={q.label}
+                    onChange={(e) => updateQuestion(idx, { label: e.target.value })}
+                    placeholder="Question text"
+                    className="h-8 text-sm flex-1"
+                  />
+                  <button
+                    onClick={() => removeQuestion(idx)}
+                    className="text-muted-foreground hover:text-red-400 p-0.5 shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={q.type}
+                    onChange={(e) => updateQuestion(idx, { type: e.target.value as any })}
+                    className="h-7 rounded border border-border bg-card px-2 text-xs"
+                  >
+                    <option value="text">Short text</option>
+                    <option value="textarea">Long text</option>
+                    <option value="select">Dropdown</option>
+                  </select>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={q.required}
+                      onChange={(e) => updateQuestion(idx, { required: e.target.checked })}
+                      className="rounded"
+                    />
+                    Required
+                  </label>
+                </div>
+                {q.type === "select" && (
+                  <Input
+                    value={(q.options ?? []).join(", ")}
+                    onChange={(e) => updateQuestion(idx, { options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                    placeholder="Option 1, Option 2, Option 3"
+                    className="h-7 text-xs"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving} className="gap-2">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create
+            {isEdit ? "Save Changes" : "Create"}
           </Button>
         </DialogFooter>
       </DialogContent>

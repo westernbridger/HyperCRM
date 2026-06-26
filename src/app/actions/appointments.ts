@@ -32,8 +32,17 @@ export type AppointmentType = {
   slug: string | null
   min_notice_h: number
   max_days_ahead: number
+  questions: BookingQuestion[]
   created_at: string
   updated_at: string
+}
+
+export type BookingQuestion = {
+  id: string
+  label: string
+  type: 'text' | 'textarea' | 'select'
+  required: boolean
+  options?: string[]
 }
 
 export type Appointment = {
@@ -173,6 +182,7 @@ export async function createAppointmentType(input: {
   timezone?: string
   min_notice_h?: number
   max_days_ahead?: number
+  questions?: BookingQuestion[]
 }): Promise<{ data: AppointmentType | null; error: string | null }> {
   const { supabase, workspaceId, userId } = await getContext()
   if (!workspaceId) return { data: null, error: 'Not authenticated' }
@@ -204,7 +214,8 @@ export async function createAppointmentType(input: {
       slug,
       min_notice_h: input.min_notice_h ?? 2,
       max_days_ahead: input.max_days_ahead ?? 30,
-    })
+      questions: input.questions ?? [],
+    } as any)
     .select()
     .single()
 
@@ -222,7 +233,7 @@ export async function updateAppointmentType(
 
   const { error } = await supabase
     .from('appointment_types')
-    .update(updates)
+    .update(updates as any)
     .eq('id', id)
     .eq('workspace_id', workspaceId)
 
@@ -801,6 +812,7 @@ export async function bookAppointmentByLink(
     client_email: string
     client_phone?: string
     appointment_type_id?: string
+    booking_answers?: { question_id: string; label: string; answer: string }[]
   }
 ): Promise<{ data: Appointment | null; error: string | null }> {
   const supabase = await createClient()
@@ -874,7 +886,8 @@ export async function bookAppointmentByLink(
       client_name: input.client_name,
       client_email: input.client_email,
       client_phone: input.client_phone ?? null,
-    })
+      booking_answers: input.booking_answers ?? null,
+    } as any)
     .select()
     .single()
 
