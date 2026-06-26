@@ -80,7 +80,7 @@ export async function getBusyTimes(
   return busy.map((b) => ({ start: b.start ?? '', end: b.end ?? '' }))
 }
 
-// Create a Google Calendar event and return its ID
+// Create a Google Calendar event and return its ID + Meet URL
 export async function createCalendarEvent(
   accessToken: string,
   refreshToken: string | undefined,
@@ -92,11 +92,13 @@ export async function createCalendarEvent(
     end: string
     location?: string
     attendees?: { email: string; name?: string }[]
+    generateMeet?: boolean
   }
-): Promise<string | null> {
+): Promise<{ eventId: string | null; meetUrl: string | null }> {
   const calendar = await getCalendarClient(accessToken, refreshToken)
   const { data } = await calendar.events.insert({
     calendarId,
+    conferenceDataVersion: 1,
     requestBody: {
       summary: event.summary,
       description: event.description,
@@ -107,9 +109,23 @@ export async function createCalendarEvent(
       reminders: {
         useDefault: true,
       },
+      ...(event.generateMeet
+        ? {
+            conferenceData: {
+              createRequest: {
+                requestId: `meet-${Date.now()}`,
+                conferenceSolutionKey: { type: 'hangoutsMeet' },
+              },
+            },
+          }
+        : {}),
     },
   })
-  return data.id ?? null
+
+  const meetUrl =
+    data.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri ?? null
+
+  return { eventId: data.id ?? null, meetUrl }
 }
 
 // Delete a Google Calendar event

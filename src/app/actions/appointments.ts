@@ -254,11 +254,7 @@ export async function getAppointments(opts?: {
 
   let query = supabase
     .from('appointments')
-    .select(`
-      *,
-      contact:contacts(first_name, last_name, email),
-      type:appointment_types(name, color)
-    `)
+    .select('*')
     .eq('workspace_id', workspaceId)
     .order('start_time', { ascending: true })
 
@@ -270,14 +266,25 @@ export async function getAppointments(opts?: {
 
   if (error) return { data: null, error: error.message }
 
+  // Fetch appointment types separately to avoid RLS join issues
+  const typeIds = [...new Set((data ?? []).map((r: any) => r.appointment_type_id).filter(Boolean))]
+  let typeMap: Record<string, { name: string; color: string }> = {}
+  if (typeIds.length > 0) {
+    const { data: types } = await supabase
+      .from('appointment_types')
+      .select('id, name, color')
+      .in('id', typeIds)
+    for (const t of types ?? []) {
+      typeMap[t.id] = { name: t.name, color: t.color ?? '#6366f1' }
+    }
+  }
+
   const appointments = (data ?? []).map((row: any) => ({
     ...row,
-    contact_name: row.contact
-      ? `${row.contact.first_name} ${row.contact.last_name}`.trim()
-      : row.client_name,
-    contact_email: row.contact?.email ?? row.client_email,
-    type_name: row.type?.name,
-    type_color: row.type?.color,
+    contact_name: row.client_name,
+    contact_email: row.client_email,
+    type_name: row.appointment_type_id ? typeMap[row.appointment_type_id]?.name : undefined,
+    type_color: row.appointment_type_id ? typeMap[row.appointment_type_id]?.color : undefined,
   })) as Appointment[]
 
   return { data: appointments, error: null }
@@ -363,7 +370,7 @@ export async function createAppointment(input: {
           .eq('id', conn.id)
       }
 
-      const eventId = await createCalendarEvent(
+      const { eventId, meetUrl } = await createCalendarEvent(
         accessToken!,
         conn.refresh_token ?? undefined,
         conn.calendar_id ?? 'primary',
@@ -376,13 +383,18 @@ export async function createAppointment(input: {
           attendees: input.client_email
             ? [{ email: input.client_email, name: input.client_name ?? undefined }]
             : undefined,
+          generateMeet: input.meeting_type === 'video' && !input.meeting_url,
         }
       )
 
       if (eventId) {
         await supabase
           .from('appointments')
-          .update({ external_event_id: eventId, external_calendar_id: conn.calendar_id })
+          .update({
+            external_event_id: eventId,
+            external_calendar_id: conn.calendar_id,
+            ...(meetUrl ? { meeting_url: meetUrl } : {}),
+          })
           .eq('id', appointment.id)
       }
     }
@@ -776,7 +788,7 @@ export async function bookAppointmentByLink(
         accessToken = refreshed.access_token ?? null
       }
 
-      const eventId = await createCalendarEvent(
+      const { eventId, meetUrl } = await createCalendarEvent(
         accessToken!,
         conn.refresh_token ?? undefined,
         conn.calendar_id ?? 'primary',
@@ -785,13 +797,18 @@ export async function bookAppointmentByLink(
           start: input.start_time,
           end: input.end_time,
           attendees: [{ email: input.client_email, name: input.client_name }],
+          generateMeet: apptType.meeting_type === 'video',
         }
       )
 
       if (eventId) {
         await supabase
           .from('appointments')
-          .update({ external_event_id: eventId, external_calendar_id: conn.calendar_id })
+          .update({
+            external_event_id: eventId,
+            external_calendar_id: conn.calendar_id,
+            ...(meetUrl ? { meeting_url: meetUrl } : {}),
+          })
           .eq('id', (data as any).id)
       }
     }
