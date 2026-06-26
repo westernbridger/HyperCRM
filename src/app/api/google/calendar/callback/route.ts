@@ -63,6 +63,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/appointments?connected=google', request.url))
   } catch (err) {
     console.error('Google OAuth callback error:', err)
-    return NextResponse.redirect(new URL('/appointments?error=callback_exception', request.url))
+    const msg = err instanceof Error ? err.message : String(err)
+    const encoded = encodeURIComponent(msg)
+    return NextResponse.redirect(new URL(`/appointments?error=callback_exception&detail=${encoded}`, request.url))
   }
 }

@@ -137,7 +137,9 @@ export function AppointmentsPage() {
         db_error: "Failed to save calendar connection to database.",
         callback_exception: "An unexpected error occurred during Google OAuth.",
       };
-      setOauthError(errorMessages[errorParam] ?? `OAuth error: ${errorParam}`);
+      const baseMsg = errorMessages[errorParam] ?? `OAuth error: ${errorParam}`;
+      const detail = params.get("detail");
+      setOauthError(detail ? `${baseMsg} — ${detail}` : baseMsg);
       window.history.replaceState({}, "", "/appointments");
     } else if (connectedParam) {
       loadData();
