@@ -162,6 +162,11 @@ create policy "cc_delete" on public.calendar_connections
 -- Appointment Types: workspace members can manage
 alter table public.appointment_types enable row level security;
 
+-- Public can view active appointment types (for public booking pages)
+drop policy if exists "at_public_select" on public.appointment_types;
+create policy "at_public_select" on public.appointment_types
+  for select using (is_active = true);
+
 drop policy if exists "at_select" on public.appointment_types;
 create policy "at_select" on public.appointment_types
   for select using (
@@ -205,6 +210,16 @@ create policy "at_delete" on public.appointment_types
 -- Appointments: workspace members can manage
 alter table public.appointments enable row level security;
 
+-- Public can view appointments (needed for double-booking check in public booking)
+drop policy if exists "ap_public_select" on public.appointments;
+create policy "ap_public_select" on public.appointments
+  for select using (true);
+
+-- Public can insert appointments booked via link
+drop policy if exists "ap_public_insert" on public.appointments;
+create policy "ap_public_insert" on public.appointments
+  for insert with check (booked_via_link = true);
+
 drop policy if exists "ap_select" on public.appointments;
 create policy "ap_select" on public.appointments
   for select using (
@@ -247,6 +262,11 @@ create policy "ap_delete" on public.appointments
 
 -- Booking Links: workspace members can manage
 alter table public.booking_links enable row level security;
+
+-- Public can view active booking links (for public booking pages)
+drop policy if exists "bl_public_select" on public.booking_links;
+create policy "bl_public_select" on public.booking_links
+  for select using (is_active = true);
 
 drop policy if exists "bl_select" on public.booking_links;
 create policy "bl_select" on public.booking_links

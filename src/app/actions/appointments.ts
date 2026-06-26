@@ -800,21 +800,56 @@ export async function bookAppointmentByLink(
     client_name: string
     client_email: string
     client_phone?: string
+    appointment_type_id?: string
   }
 ): Promise<{ data: Appointment | null; error: string | null }> {
   const supabase = await createClient()
 
-  // Get appointment type
-  const { data: apptType, error: typeError } = await getAppointmentTypeBySlug(slug)
-  if (typeError || !apptType) {
-    return { data: null, error: typeError ?? 'Appointment type not found' }
+  // Get booking link by slug
+  const { data: linkRow, error: linkError } = await supabase
+    .from('booking_links')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (linkError || !linkRow) {
+    return { data: null, error: 'Booking link not found' }
+  }
+
+  const link = linkRow as any
+  const workspaceId = link.workspace_id
+  const typeIds = (link.appointment_type_ids ?? []) as string[]
+
+  // Determine which appointment type to use
+  let apptTypeId = input.appointment_type_id ?? (typeIds.length === 1 ? typeIds[0] : null)
+  if (!apptTypeId) {
+    return { data: null, error: 'Please select an appointment type' }
+  }
+
+  // Verify the type belongs to this link
+  if (!typeIds.includes(apptTypeId)) {
+    return { data: null, error: 'Invalid appointment type for this booking link' }
+  }
+
+  // Get the appointment type
+  const { data: apptType } = await supabase
+    .from('appointment_types')
+    .select('*')
+    .eq('id', apptTypeId)
+    .eq('workspace_id', workspaceId)
+    .eq('is_active', true)
+    .single()
+
+  if (!apptType) {
+    return { data: null, error: 'Appointment type not found' }
   }
 
   // Check for double booking
   const { data: conflicts } = await supabase
     .from('appointments')
     .select('id')
-    .eq('workspace_id', apptType.workspace_id)
+    .eq('workspace_id', workspaceId)
     .neq('status', 'cancelled')
     .or(`and(start_time.lt.${input.end_time},end_time.gt.${input.start_time})`)
     .maybeSingle()
@@ -826,16 +861,16 @@ export async function bookAppointmentByLink(
   const { data, error } = await supabase
     .from('appointments')
     .insert({
-      workspace_id: apptType.workspace_id,
+      workspace_id: workspaceId,
       appointment_type_id: apptType.id,
-      user_id: apptType.user_id,
+      user_id: link.user_id ?? apptType.user_id,
       title: `${apptType.name} with ${input.client_name}`,
       meeting_type: apptType.meeting_type,
       status: 'confirmed',
       start_time: input.start_time,
       end_time: input.end_time,
       booked_via_link: true,
-      booking_link_id: apptType.id,
+      booking_link_id: link.id,
       client_name: input.client_name,
       client_email: input.client_email,
       client_phone: input.client_phone ?? null,
@@ -892,4 +927,181 @@ export async function bookAppointmentByLink(
   }
 
   return { data: data as unknown as Appointment, error: null }
+}
+
+// ── Public booking: get booking link by slug (no auth) ──────────────────────
+
+export async function getBookingLinkBySlug(
+  slug: string
+): Promise<{ data: { link: BookingLink; types: AppointmentType[] } | null; error: string | null }> {
+  const supabase = await createClient()
+
+  const { data: link, error: linkError } = await supabase
+    .from('booking_links')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (linkError || !link) {
+    return { data: null, error: linkError?.message ?? 'Booking link not found' }
+  }
+
+  // Fetch the appointment types associated with this link
+  const typeIds = (link as any).appointment_type_ids as string[]
+  let types: AppointmentType[] = []
+  if (typeIds && typeIds.length > 0) {
+    const { data: typeRows } = await supabase
+      .from('appointment_types')
+      .select('*')
+      .in('id', typeIds)
+      .eq('is_active', true)
+    types = (typeRows ?? []) as unknown as AppointmentType[]
+  }
+
+  return { data: { link: link as unknown as BookingLink, types }, error: null }
+}
+
+// ── Public booking: get available slots by slug (no auth) ───────────────────
+
+export async function getAvailableSlotsBySlug(
+  slug: string,
+  appointmentTypeId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<{ data: { start: string; end: string }[] | null; error: string | null }> {
+  const supabase = await createClient()
+
+  // Get the booking link to find the workspace
+  const { data: link } = await supabase
+    .from('booking_links')
+    .select('workspace_id, appointment_type_ids')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (!link) return { data: null, error: 'Booking link not found' }
+
+  const workspaceId = (link as any).workspace_id as string
+
+  // Get the appointment type
+  const { data: apptType } = await supabase
+    .from('appointment_types')
+    .select('*')
+    .eq('id', appointmentTypeId)
+    .eq('workspace_id', workspaceId)
+    .eq('is_active', true)
+    .single()
+
+  if (!apptType) return { data: null, error: 'Appointment type not found' }
+
+  // Get calendar connection for busy times
+  const { data: conn } = await supabase
+    .from('calendar_connections')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'google')
+    .eq('sync_enabled', true)
+    .maybeSingle()
+
+  // Get existing appointments in range
+  const { data: existingAppts } = await supabase
+    .from('appointments')
+    .select('start_time, end_time, status')
+    .eq('workspace_id', workspaceId)
+    .gte('start_time', dateFrom)
+    .lte('start_time', dateTo)
+    .neq('status', 'cancelled')
+
+  const busyIntervals: { start: string; end: string }[] = []
+  for (const appt of existingAppts ?? []) {
+    busyIntervals.push({ start: appt.start_time, end: appt.end_time })
+  }
+
+  if (conn?.access_token && conn?.calendar_id) {
+    try {
+      let accessToken: string | null = conn.access_token
+      if (conn.token_expires_at && new Date(conn.token_expires_at) < new Date()) {
+        const refreshed = await refreshAccessToken(conn.refresh_token!)
+        accessToken = refreshed.access_token ?? null
+      }
+      const googleBusy = await getBusyTimes(
+        accessToken!,
+        conn.refresh_token ?? undefined,
+        conn.calendar_id,
+        dateFrom,
+        dateTo
+      )
+      busyIntervals.push(...googleBusy)
+    } catch (e) {
+      console.error('Failed to get Google busy times:', e)
+    }
+  }
+
+  // Generate available slots
+  const availability = apptType.availability as Record<string, string[][]>
+  const durationMin = apptType.duration_min
+  const bufferBefore = apptType.buffer_before_min
+  const bufferAfter = apptType.buffer_after_min
+  const minNoticeMs = apptType.min_notice_h * 60 * 60 * 1000
+  const maxAheadMs = apptType.max_days_ahead * 24 * 60 * 60 * 1000
+
+  const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+  const slots: { start: string; end: string }[] = []
+
+  const fromDate = new Date(dateFrom)
+  const toDate = new Date(dateTo)
+  const now = new Date()
+  const maxDate = new Date(now.getTime() + maxAheadMs)
+
+  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+    if (d > maxDate) break
+    if (d.getTime() < now.getTime() + minNoticeMs) continue
+
+    const dayName = dayNames[d.getDay()]
+    const dayRanges = availability[dayName] ?? []
+
+    for (const range of dayRanges) {
+      const [rangeStart, rangeEnd] = range
+      const [startH, startM] = rangeStart.split(':').map(Number)
+      const [endH, endM] = rangeEnd.split(':').map(Number)
+
+      const slotStart = new Date(d)
+      slotStart.setHours(startH, startM, 0, 0)
+
+      const rangeEndTime = new Date(d)
+      rangeEndTime.setHours(endH, endM, 0, 0)
+
+      let current = new Date(slotStart)
+      while (current.getTime() + durationMin * 60 * 1000 <= rangeEndTime.getTime()) {
+        const slotEnd = new Date(current.getTime() + durationMin * 60 * 1000)
+
+        const busyStart = new Date(current.getTime() - bufferBefore * 60 * 1000)
+        const busyEnd = new Date(slotEnd.getTime() + bufferAfter * 60 * 1000)
+
+        const hasConflict = busyIntervals.some((b) => {
+          const bStart = new Date(b.start)
+          const bEnd = new Date(b.end)
+          return (
+            (busyStart >= bStart && busyStart < bEnd) ||
+            (busyEnd > bStart && busyEnd <= bEnd) ||
+            (busyStart <= bStart && busyEnd >= bEnd)
+          )
+        })
+
+        const passesNotice = current.getTime() >= now.getTime() + minNoticeMs
+
+        if (!hasConflict && passesNotice) {
+          slots.push({
+            start: current.toISOString(),
+            end: slotEnd.toISOString(),
+          })
+        }
+
+        current = new Date(current.getTime() + durationMin * 60 * 1000)
+      }
+    }
+  }
+
+  return { data: slots, error: null }
 }

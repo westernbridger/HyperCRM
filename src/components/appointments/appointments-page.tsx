@@ -559,7 +559,11 @@ export function AppointmentsPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {bookingLinks.map((link) => (
+              {bookingLinks.map((link) => {
+                const linkTypes = appointmentTypes.filter((t) =>
+                  (link.appointment_type_ids ?? []).includes(t.id)
+                );
+                return (
                 <div
                   key={link.id}
                   className="flex items-center justify-between rounded-xl border border-border bg-card p-4"
@@ -568,6 +572,23 @@ export function AppointmentsPage() {
                     <h3 className="text-sm font-semibold">{link.title}</h3>
                     {link.description && (
                       <p className="text-xs text-muted-foreground mt-0.5">{link.description}</p>
+                    )}
+                    {linkTypes.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {linkTypes.map((t) => (
+                          <span
+                            key={t.id}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full border"
+                            style={{
+                              borderColor: (t.color ?? "#6366f1") + "40",
+                              backgroundColor: (t.color ?? "#6366f1") + "15",
+                              color: t.color ?? "#6366f1",
+                            }}
+                          >
+                            {t.name} · {t.duration_min}min
+                          </span>
+                        ))}
+                      </div>
                     )}
                     <div className="flex items-center gap-2 mt-2">
                       <code className="text-xs text-muted-foreground">/book/{link.slug}</code>
@@ -596,7 +617,8 @@ export function AppointmentsPage() {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>
