@@ -169,6 +169,8 @@ export function BookingPage({ slug }: { slug: string }) {
               day: "numeric",
               hour: "numeric",
               minute: "2-digit",
+              timeZone: selectedType.timezone || "America/New_York",
+              timeZoneName: "short",
             })}
           </p>
         </div>
@@ -415,6 +417,9 @@ export function BookingPage({ slug }: { slug: string }) {
             <h2 className="text-sm font-semibold">
               Available times — {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </h2>
+            <p className="text-xs text-muted-foreground -mt-1">
+              Times shown in {(selectedType.timezone || "America/New_York").replace(/_/g, " ")}
+            </p>
             {loadingSlots ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -436,7 +441,7 @@ export function BookingPage({ slug }: { slug: string }) {
                         : "border-border hover:bg-indigo-500/10"
                     )}
                   >
-                    {new Date(slot.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                    {new Date(slot.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: selectedType.timezone || "America/New_York" })}
                   </button>
                 ))}
               </div>

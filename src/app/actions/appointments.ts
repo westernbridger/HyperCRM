@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getAuthUrl, getBusyTimes, createCalendarEvent, deleteCalendarEvent, refreshAccessToken } from '@/lib/google/calendar'
+import { zonedWallTimeToUtc, datePartsInTimeZone } from '@/lib/timezone'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -656,6 +657,49 @@ export async function getAvailableSlots(
   const bufferAfter = apptType.buffer_after_min
   const minNoticeMs = apptType.min_notice_h * 60 * 60 * 1000
   const maxAheadMs = apptType.max_days_ahead * 24 * 60 * 60 * 1000
+  const timeZone = apptType.timezone || 'America/New_York'
+
+  const slots = generateSlots({
+    dateFrom,
+    dateTo,
+    availability,
+    durationMin,
+    bufferBefore,
+    bufferAfter,
+    minNoticeMs,
+    maxAheadMs,
+    timeZone,
+    busyIntervals,
+  })
+
+  return { data: slots, error: null }
+}
+
+// Shared slot generation that respects the appointment type's IANA timezone.
+function generateSlots(opts: {
+  dateFrom: string
+  dateTo: string
+  availability: Record<string, string[][]>
+  durationMin: number
+  bufferBefore: number
+  bufferAfter: number
+  minNoticeMs: number
+  maxAheadMs: number
+  timeZone: string
+  busyIntervals: { start: string; end: string }[]
+}): { start: string; end: string }[] {
+  const {
+    dateFrom,
+    dateTo,
+    availability,
+    durationMin,
+    bufferBefore,
+    bufferAfter,
+    minNoticeMs,
+    maxAheadMs,
+    timeZone,
+    busyIntervals,
+  } = opts
 
   const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
   const slots: { start: string; end: string }[] = []
@@ -665,11 +709,20 @@ export async function getAvailableSlots(
   const now = new Date()
   const maxDate = new Date(now.getTime() + maxAheadMs)
 
-  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-    if (d > maxDate) break
-    if (d.getTime() < now.getTime() + minNoticeMs) continue
+  // Iterate each calendar day spanned by the range, resolving the date and
+  // weekday in the configured timezone (anchored at noon UTC to avoid edge cases).
+  const processed = new Set<string>()
+  for (
+    let cursor = new Date(fromDate.getTime());
+    cursor.getTime() <= toDate.getTime();
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+  ) {
+    const parts = datePartsInTimeZone(cursor, timeZone)
+    const dateKey = `${parts.year}-${parts.month}-${parts.day}`
+    if (processed.has(dateKey)) continue
+    processed.add(dateKey)
 
-    const dayName = dayNames[d.getDay()]
+    const dayName = dayNames[parts.weekday]
     const dayRanges = availability[dayName] ?? []
 
     for (const range of dayRanges) {
@@ -677,16 +730,15 @@ export async function getAvailableSlots(
       const [startH, startM] = rangeStart.split(':').map(Number)
       const [endH, endM] = rangeEnd.split(':').map(Number)
 
-      const slotStart = new Date(d)
-      slotStart.setHours(startH, startM, 0, 0)
-
-      const rangeEndTime = new Date(d)
-      rangeEndTime.setHours(endH, endM, 0, 0)
+      const slotStart = zonedWallTimeToUtc(parts.year, parts.month, parts.day, startH, startM, timeZone)
+      const rangeEndTime = zonedWallTimeToUtc(parts.year, parts.month, parts.day, endH, endM, timeZone)
 
       // Generate slots
       let current = new Date(slotStart)
       while (current.getTime() + durationMin * 60 * 1000 <= rangeEndTime.getTime()) {
         const slotEnd = new Date(current.getTime() + durationMin * 60 * 1000)
+
+        if (current.getTime() > maxDate.getTime()) break
 
         // Apply buffer
         const busyStart = new Date(current.getTime() - bufferBefore * 60 * 1000)
@@ -719,7 +771,7 @@ export async function getAvailableSlots(
     }
   }
 
-  return { data: slots, error: null }
+  return slots
 }
 
 // ── Booking Links ────────────────────────────────────────────────────────────
@@ -1057,70 +1109,19 @@ export async function getAvailableSlotsBySlug(
     }
   }
 
-  // Generate available slots
-  const availability = apptType.availability as Record<string, string[][]>
-  const durationMin = apptType.duration_min
-  const bufferBefore = apptType.buffer_before_min
-  const bufferAfter = apptType.buffer_after_min
-  const minNoticeMs = apptType.min_notice_h * 60 * 60 * 1000
-  const maxAheadMs = apptType.max_days_ahead * 24 * 60 * 60 * 1000
-
-  const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-  const slots: { start: string; end: string }[] = []
-
-  const fromDate = new Date(dateFrom)
-  const toDate = new Date(dateTo)
-  const now = new Date()
-  const maxDate = new Date(now.getTime() + maxAheadMs)
-
-  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-    if (d > maxDate) break
-    if (d.getTime() < now.getTime() + minNoticeMs) continue
-
-    const dayName = dayNames[d.getDay()]
-    const dayRanges = availability[dayName] ?? []
-
-    for (const range of dayRanges) {
-      const [rangeStart, rangeEnd] = range
-      const [startH, startM] = rangeStart.split(':').map(Number)
-      const [endH, endM] = rangeEnd.split(':').map(Number)
-
-      const slotStart = new Date(d)
-      slotStart.setHours(startH, startM, 0, 0)
-
-      const rangeEndTime = new Date(d)
-      rangeEndTime.setHours(endH, endM, 0, 0)
-
-      let current = new Date(slotStart)
-      while (current.getTime() + durationMin * 60 * 1000 <= rangeEndTime.getTime()) {
-        const slotEnd = new Date(current.getTime() + durationMin * 60 * 1000)
-
-        const busyStart = new Date(current.getTime() - bufferBefore * 60 * 1000)
-        const busyEnd = new Date(slotEnd.getTime() + bufferAfter * 60 * 1000)
-
-        const hasConflict = busyIntervals.some((b) => {
-          const bStart = new Date(b.start)
-          const bEnd = new Date(b.end)
-          return (
-            (busyStart >= bStart && busyStart < bEnd) ||
-            (busyEnd > bStart && busyEnd <= bEnd) ||
-            (busyStart <= bStart && busyEnd >= bEnd)
-          )
-        })
-
-        const passesNotice = current.getTime() >= now.getTime() + minNoticeMs
-
-        if (!hasConflict && passesNotice) {
-          slots.push({
-            start: current.toISOString(),
-            end: slotEnd.toISOString(),
-          })
-        }
-
-        current = new Date(current.getTime() + durationMin * 60 * 1000)
-      }
-    }
-  }
+  // Generate available slots (timezone-aware, shared with authenticated path)
+  const slots = generateSlots({
+    dateFrom,
+    dateTo,
+    availability: apptType.availability as Record<string, string[][]>,
+    durationMin: apptType.duration_min,
+    bufferBefore: apptType.buffer_before_min,
+    bufferAfter: apptType.buffer_after_min,
+    minNoticeMs: apptType.min_notice_h * 60 * 60 * 1000,
+    maxAheadMs: apptType.max_days_ahead * 24 * 60 * 60 * 1000,
+    timeZone: apptType.timezone || 'America/New_York',
+    busyIntervals,
+  })
 
   return { data: slots, error: null }
 }
