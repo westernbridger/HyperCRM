@@ -41,9 +41,18 @@ export type AppointmentType = {
 export type BookingQuestion = {
   id: string
   label: string
-  type: 'text' | 'textarea' | 'select'
+  type: 'text' | 'textarea' | 'select' | 'file'
   required: boolean
   options?: string[]
+}
+
+export type BookingAnswer = {
+  question_id: string
+  label: string
+  answer: string
+  type?: 'text' | 'textarea' | 'select' | 'file'
+  file_url?: string
+  file_name?: string
 }
 
 export type Appointment = {
@@ -66,6 +75,7 @@ export type Appointment = {
   client_name: string | null
   client_email: string | null
   client_phone: string | null
+  booking_answers: BookingAnswer[] | null
   notes: string | null
   is_followup: boolean
   parent_appointment_id: string | null
@@ -864,7 +874,7 @@ export async function bookAppointmentByLink(
     client_email: string
     client_phone?: string
     appointment_type_id?: string
-    booking_answers?: { question_id: string; label: string; answer: string }[]
+    booking_answers?: BookingAnswer[]
   }
 ): Promise<{ data: Appointment | null; error: string | null }> {
   const supabase = await createClient()

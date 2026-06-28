@@ -22,6 +22,9 @@ import {
   Copy,
   Check,
   Edit3,
+  Paperclip,
+  Download,
+  MessageSquareText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1339,6 +1342,7 @@ function AppointmentTypeDialog({
                     <option value="text">Short text</option>
                     <option value="textarea">Long text</option>
                     <option value="select">Dropdown</option>
+                    <option value="file">File upload</option>
                   </select>
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
                     <input
@@ -1558,7 +1562,7 @@ function EditAppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Appointment</DialogTitle>
           <DialogDescription>Update or reschedule this appointment.</DialogDescription>
@@ -1649,6 +1653,37 @@ function EditAppointmentDialog({
             <Label className="text-xs">Notes</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
+
+          {/* Booking form responses */}
+          {appt.booking_answers && appt.booking_answers.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-border">
+              <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                <MessageSquareText className="h-3.5 w-3.5" />
+                Booking Form Responses
+              </Label>
+              <div className="space-y-2">
+                {appt.booking_answers.map((ans, i) => (
+                  <div key={ans.question_id ?? i} className="rounded-lg border border-border bg-secondary/30 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">{ans.label}</p>
+                    {ans.file_url ? (
+                      <a
+                        href={ans.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-2 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+                      >
+                        <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate max-w-[200px]">{ans.file_name || "Attachment"}</span>
+                        <Download className="h-3.5 w-3.5 shrink-0" />
+                      </a>
+                    ) : (
+                      <p className="mt-1 text-sm whitespace-pre-wrap break-words">{ans.answer || "—"}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2">

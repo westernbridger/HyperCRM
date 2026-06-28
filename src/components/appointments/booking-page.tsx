@@ -13,12 +13,15 @@ import {
   ChevronRight,
   AlertCircle,
   ArrowLeft,
+  Paperclip,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import {
   getBookingLinkBySlug,
   getAvailableSlotsBySlug,
@@ -26,6 +29,7 @@ import {
   type AppointmentType,
   type BookingLink,
   type BookingQuestion,
+  type BookingAnswer,
 } from "@/app/actions/appointments";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -61,7 +65,32 @@ export function BookingPage({ slug }: { slug: string }) {
   const [booking, setBooking] = useState(false);
   const [booked, setBooked] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
+  const [fileUploads, setFileUploads] = useState<Record<string, { url: string; name: string }>>({});
+  const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
   const [showQuestions, setShowQuestions] = useState(false);
+
+  async function handleFileUpload(questionId: string, file: File) {
+    setUploadingFiles((prev) => ({ ...prev, [questionId]: true }));
+    setError(null);
+    try {
+      const supabase = createClient();
+      const ext = file.name.split(".").pop() ?? "bin";
+      const path = `${slug}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("booking-attachments")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (uploadError) {
+        setError(`Upload failed: ${uploadError.message}`);
+        setUploadingFiles((prev) => ({ ...prev, [questionId]: false }));
+        return;
+      }
+      const { data: pub } = supabase.storage.from("booking-attachments").getPublicUrl(path);
+      setFileUploads((prev) => ({ ...prev, [questionId]: { url: pub.publicUrl, name: file.name } }));
+    } catch (e: any) {
+      setError(`Upload failed: ${e?.message ?? "unknown error"}`);
+    }
+    setUploadingFiles((prev) => ({ ...prev, [questionId]: false }));
+  }
 
   useEffect(() => {
     (async () => {
@@ -120,11 +149,25 @@ export function BookingPage({ slug }: { slug: string }) {
       client_email: clientEmail,
       client_phone: clientPhone || undefined,
       appointment_type_id: selectedType.id,
-      booking_answers: (selectedType.questions ?? []).map((q) => ({
-        question_id: q.id,
-        label: q.label,
-        answer: questionAnswers[q.id] ?? "",
-      })).filter((a) => a.answer),
+      booking_answers: (selectedType.questions ?? []).map((q): BookingAnswer => {
+        if (q.type === "file") {
+          const f = fileUploads[q.id];
+          return {
+            question_id: q.id,
+            label: q.label,
+            answer: f?.name ?? "",
+            type: "file",
+            file_url: f?.url,
+            file_name: f?.name,
+          };
+        }
+        return {
+          question_id: q.id,
+          label: q.label,
+          answer: questionAnswers[q.id] ?? "",
+          type: q.type,
+        };
+      }).filter((a) => a.answer || a.file_url),
     });
     setBooking(false);
     if (error) {
@@ -209,6 +252,7 @@ export function BookingPage({ slug }: { slug: string }) {
                       setSelectedType(t);
                       setShowQuestions((t.questions ?? []).length > 0);
                       setQuestionAnswers({});
+                      setFileUploads({});
                     }}
                     className="w-full flex items-center gap-4 rounded-xl border border-border bg-card p-4 text-left hover:bg-muted/20 transition-colors"
                   >
@@ -270,7 +314,7 @@ export function BookingPage({ slug }: { slug: string }) {
         <div className="text-center space-y-2">
           {types.length > 1 && (
             <button
-              onClick={() => { setSelectedType(null); setSelectedDate(null); setSelectedSlot(null); setShowQuestions(false); }}
+              onClick={() => { setSelectedType(null); setSelectedDate(null); setSelectedSlot(null); setShowQuestions(false); setQuestionAnswers({}); setFileUploads({}); }}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2"
             >
               <ArrowLeft className="h-3 w-3" />
@@ -327,6 +371,42 @@ export function BookingPage({ slug }: { slug: string }) {
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
+                ) : q.type === "file" ? (
+                  <div>
+                    {fileUploads[q.id] ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-2">
+                        <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-sm truncate flex-1">{fileUploads[q.id].name}</span>
+                        <button
+                          onClick={() => setFileUploads((prev) => {
+                            const next = { ...prev };
+                            delete next[q.id];
+                            return next;
+                          })}
+                          className="text-muted-foreground hover:text-red-400 shrink-0"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-card px-3 py-2.5 text-sm text-muted-foreground cursor-pointer hover:border-indigo-500/50 hover:text-foreground transition-colors">
+                        {uploadingFiles[q.id] ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
+                        ) : (
+                          <><Paperclip className="h-4 w-4" /> Choose a file</>
+                        )}
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={uploadingFiles[q.id]}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleFileUpload(q.id, file);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
                 ) : (
                   <Input
                     value={questionAnswers[q.id] ?? ""}
@@ -338,7 +418,14 @@ export function BookingPage({ slug }: { slug: string }) {
             ))}
             <Button
               onClick={() => setShowQuestions(false)}
-              disabled={(selectedType.questions ?? []).some((q) => q.required && !(questionAnswers[q.id] ?? "").trim())}
+              disabled={
+                Object.values(uploadingFiles).some(Boolean) ||
+                (selectedType.questions ?? []).some((q) =>
+                  q.required && (q.type === "file"
+                    ? !fileUploads[q.id]
+                    : !(questionAnswers[q.id] ?? "").trim())
+                )
+              }
               className="w-full gap-2"
             >
               Continue

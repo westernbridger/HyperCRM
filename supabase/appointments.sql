@@ -323,3 +323,21 @@ create policy "bl_delete" on public.booking_links
         and wm.user_id = auth.uid()
     )
   );
+
+-- ── Booking Attachments Storage ─────────────────────────────────────────────
+-- Public bucket for files uploaded by clients via the public booking form.
+insert into storage.buckets (id, name, public)
+values ('booking-attachments', 'booking-attachments', true)
+on conflict (id) do nothing;
+
+-- Anyone (including unauthenticated bookers) may upload to this bucket.
+drop policy if exists "booking_attachments_public_insert" on storage.objects;
+create policy "booking_attachments_public_insert" on storage.objects
+  for insert to public
+  with check (bucket_id = 'booking-attachments');
+
+-- Anyone may read booking attachments (bucket is public; needed for download links).
+drop policy if exists "booking_attachments_public_select" on storage.objects;
+create policy "booking_attachments_public_select" on storage.objects
+  for select to public
+  using (bucket_id = 'booking-attachments');
