@@ -13,6 +13,7 @@ import {
   Pencil,
   FolderPlus,
   ChevronRight,
+  Filter,
 } from "lucide-react";
 import {
   getSegments,
@@ -24,8 +25,13 @@ import {
   removeContactFromSegment,
   addContactsByEmail,
   importCsvToSegment,
+  SEGMENT_FIELDS,
+  SEGMENT_OPERATORS,
   type Segment,
   type SegmentContact,
+  type SegmentConditions,
+  type SegmentConditionItem,
+  type SegmentOperator,
 } from "@/app/actions/segments";
 import { getContacts, type UiContact } from "@/lib/data/contacts";
 import { useToast } from "@/hooks/use-toast";
@@ -51,6 +57,138 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+// ── Condition Builder ────────────────────────────────────────────────────────
+
+function ConditionBuilder({
+  conditions,
+  onChange,
+}: {
+  conditions: SegmentConditions | null;
+  onChange: (c: SegmentConditions | null) => void;
+}) {
+  const enabled = conditions !== null;
+  const items = conditions?.items ?? [];
+  const logic = conditions?.logic ?? "and";
+
+  function toggleEnabled() {
+    if (enabled) {
+      onChange(null);
+    } else {
+      onChange({ logic: "and", items: [] });
+    }
+  }
+
+  function addCondition() {
+    const newItem: SegmentConditionItem = {
+      id: crypto.randomUUID(),
+      field: "first_name",
+      operator: "contains",
+      value: "",
+    };
+    onChange({ logic, items: [...items, newItem] });
+  }
+
+  function updateCondition(id: string, updates: Partial<SegmentConditionItem>) {
+    onChange({
+      logic,
+      items: items.map((it) => (it.id === id ? { ...it, ...updates } : it)),
+    });
+  }
+
+  function removeCondition(id: string) {
+    onChange({
+      logic,
+      items: items.filter((it) => it.id !== id),
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-1.5">
+          <Filter className="h-3.5 w-3.5" />
+          Auto-match conditions
+        </Label>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+          <input type="checkbox" checked={enabled} onChange={toggleEnabled} className="rounded" />
+          Enabled
+        </label>
+      </div>
+      {enabled && (
+        <>
+          <p className="text-xs text-muted-foreground">
+            Contacts matching these conditions will be automatically added to this segment. New contacts that match will be added automatically.
+          </p>
+          {items.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Match</span>
+              <select
+                value={logic}
+                onChange={(e) => onChange({ logic: e.target.value as "and" | "or", items })}
+                className="h-7 rounded border border-border bg-card px-2 text-xs"
+              >
+                <option value="and">ALL (AND)</option>
+                <option value="or">ANY (OR)</option>
+              </select>
+              <span className="text-xs text-muted-foreground">of the following:</span>
+            </div>
+          )}
+          <div className="space-y-2">
+            {items.map((item) => {
+              const fieldDef = SEGMENT_FIELDS.find((f) => f.key === item.field);
+              const opDef = SEGMENT_OPERATORS.find((o) => o.key === item.operator);
+              return (
+                <div key={item.id} className="rounded-lg border border-border bg-secondary/30 p-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={item.field}
+                      onChange={(e) => updateCondition(item.id, { field: e.target.value })}
+                      className="h-7 flex-1 rounded border border-border bg-card px-2 text-xs"
+                    >
+                      {SEGMENT_FIELDS.map((f) => (
+                        <option key={f.key} value={f.key}>{f.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => removeCondition(item.id)}
+                      className="text-muted-foreground hover:text-red-400 p-0.5 shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={item.operator}
+                      onChange={(e) => updateCondition(item.id, { operator: e.target.value as SegmentOperator })}
+                      className="h-7 flex-1 rounded border border-border bg-card px-2 text-xs"
+                    >
+                      {SEGMENT_OPERATORS.map((o) => (
+                        <option key={o.key} value={o.key}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {opDef?.needsValue && (
+                    <Input
+                      value={item.value}
+                      onChange={(e) => updateCondition(item.id, { value: e.target.value })}
+                      placeholder="Value…"
+                      className="h-7 text-xs"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <Button variant="ghost" size="sm" onClick={addCondition} className="h-7 gap-1 text-xs">
+            <Plus className="h-3 w-3" />
+            Add condition
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function SegmentsTab() {
   const { toast } = useToast();
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -65,6 +203,7 @@ export function SegmentsTab() {
   const [segName, setSegName] = useState("");
   const [segDesc, setSegDesc] = useState("");
   const [segColor, setSegColor] = useState("#6366f1");
+  const [segConditions, setSegConditions] = useState<SegmentConditions | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Add contacts dialog
@@ -113,6 +252,7 @@ export function SegmentsTab() {
       name: segName,
       description: segDesc,
       color: segColor,
+      conditions: segConditions,
     });
     setSaving(false);
     if (error) {
@@ -123,6 +263,7 @@ export function SegmentsTab() {
     setSegName("");
     setSegDesc("");
     setSegColor("#6366f1");
+    setSegConditions(null);
     setCreateOpen(false);
     loadSegments();
   };
@@ -134,6 +275,7 @@ export function SegmentsTab() {
       name: segName,
       description: segDesc,
       color: segColor,
+      conditions: segConditions,
     });
     setSaving(false);
     if (error) {
@@ -298,6 +440,7 @@ export function SegmentsTab() {
                 setSegName(selectedSegment.name);
                 setSegDesc(selectedSegment.description || "");
                 setSegColor(selectedSegment.color || "#6366f1");
+                setSegConditions(selectedSegment.conditions ?? null);
                 setEditOpen(true);
               }}
             >
@@ -418,7 +561,7 @@ export function SegmentsTab() {
 
         {/* Edit segment dialog */}
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Segment</DialogTitle>
             </DialogHeader>
@@ -442,6 +585,9 @@ export function SegmentsTab() {
                   />
                   <span className="text-sm text-muted-foreground">{segColor}</span>
                 </div>
+              </div>
+              <div className="pt-2 border-t border-border">
+                <ConditionBuilder conditions={segConditions} onChange={setSegConditions} />
               </div>
             </div>
             <div className="flex justify-end gap-2">
@@ -599,6 +745,7 @@ export function SegmentsTab() {
             setSegName("");
             setSegDesc("");
             setSegColor("#6366f1");
+            setSegConditions(null);
             setCreateOpen(true);
           }}
         >
@@ -657,7 +804,7 @@ export function SegmentsTab() {
 
       {/* Create segment dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Segment</DialogTitle>
             <DialogDescription>Create a segment to group contacts together.</DialogDescription>
@@ -691,6 +838,9 @@ export function SegmentsTab() {
                 />
                 <span className="text-sm text-muted-foreground">{segColor}</span>
               </div>
+            </div>
+            <div className="pt-2 border-t border-border">
+              <ConditionBuilder conditions={segConditions} onChange={setSegConditions} />
             </div>
           </div>
           <div className="flex justify-end gap-2">

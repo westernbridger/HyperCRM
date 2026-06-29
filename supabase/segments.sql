@@ -10,6 +10,9 @@ create table if not exists segments (
   name text not null,
   description text,
   color text default '#6366f1',
+  -- Condition rules for auto-matching: { "logic": "and"|"or", "items": [{ "id": "uuid", "field": "first_name", "operator": "contains", "value": "..." }] }
+  -- null = manual segment (contacts added by hand); non-null = dynamic segment
+  conditions jsonb,
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -113,3 +116,11 @@ create policy "members delete segment_contacts"
         and wm.user_id = auth.uid()
     )
   );
+
+-- ── Migrations for existing tables ──────────────────────────────────────────
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_name = 'segments' and column_name = 'conditions') then
+    alter table segments add column conditions jsonb;
+  end if;
+end $$;

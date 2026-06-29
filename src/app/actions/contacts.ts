@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { env } from '@/lib/env'
+import { refreshWorkspaceSegments } from '@/app/actions/segments'
 
 function generateInboundEmail(): string {
   const domain = env.resendInboundDomain || 'email.hypercrm.ca'
@@ -239,6 +240,9 @@ export async function createContact(
       created_by: user.id,
     })
 
+    // Refresh dynamic segments for this workspace
+    await refreshWorkspaceSegments(workspaceId).catch((e) => console.error('Segment refresh error:', e))
+
     revalidatePath('/contacts')
     return { data: data as Contact, error: null }
   } catch (err) {
@@ -296,6 +300,9 @@ export async function updateContact(
         created_by: user.id,
       })
     }
+
+    // Refresh dynamic segments for this workspace
+    await refreshWorkspaceSegments(workspaceId).catch((e) => console.error('Segment refresh error:', e))
 
     revalidatePath('/contacts')
     revalidatePath(`/contacts/${id}`)

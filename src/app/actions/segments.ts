@@ -5,12 +5,35 @@ import { revalidatePath } from 'next/cache'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export type SegmentOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'contains'
+  | 'not_contains'
+  | 'begins_with'
+  | 'ends_with'
+  | 'is_empty'
+  | 'is_not_empty'
+
+export type SegmentConditionItem = {
+  id: string
+  field: string
+  operator: SegmentOperator
+  value: string
+}
+
+export type SegmentConditions = {
+  logic: 'and' | 'or'
+  items: SegmentConditionItem[]
+}
+
 export type Segment = {
   id: string
   workspace_id: string
   name: string
   description: string | null
   color: string | null
+  conditions: SegmentConditions | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -145,18 +168,170 @@ export async function getSegmentContacts(
   return { data: contacts, error: null }
 }
 
+// ── Evaluate conditions against a contact ────────────────────────────────────
+
+export const SEGMENT_FIELDS: { key: string; label: string; type: 'text' | 'select' }[] = [
+  { key: 'first_name', label: 'First Name', type: 'text' },
+  { key: 'last_name', label: 'Last Name', type: 'text' },
+  { key: 'email', label: 'Email', type: 'text' },
+  { key: 'phone', label: 'Phone', type: 'text' },
+  { key: 'company', label: 'Company', type: 'text' },
+  { key: 'status', label: 'Status', type: 'select' },
+]
+
+export const SEGMENT_OPERATORS: { key: SegmentOperator; label: string; needsValue: boolean }[] = [
+  { key: 'equals', label: 'is equal to', needsValue: true },
+  { key: 'not_equals', label: 'is not equal to', needsValue: true },
+  { key: 'contains', label: 'contains', needsValue: true },
+  { key: 'not_contains', label: 'does not contain', needsValue: true },
+  { key: 'begins_with', label: 'begins with', needsValue: true },
+  { key: 'ends_with', label: 'ends with', needsValue: true },
+  { key: 'is_empty', label: 'is empty', needsValue: false },
+  { key: 'is_not_empty', label: 'is not empty', needsValue: false },
+]
+
+function getFieldValue(contact: any, field: string): string {
+  if (field.startsWith('custom_fields.')) {
+    const customKey = field.replace('custom_fields.', '')
+    return String(contact.custom_fields?.[customKey] ?? '')
+  }
+  return String(contact[field] ?? '')
+}
+
+function evaluateCondition(contact: any, item: SegmentConditionItem): boolean {
+  const value = getFieldValue(contact, item.field)
+  const compareValue = item.value ?? ''
+
+  switch (item.operator) {
+    case 'equals':
+      return value.toLowerCase() === compareValue.toLowerCase()
+    case 'not_equals':
+      return value.toLowerCase() !== compareValue.toLowerCase()
+    case 'contains':
+      return value.toLowerCase().includes(compareValue.toLowerCase())
+    case 'not_contains':
+      return !value.toLowerCase().includes(compareValue.toLowerCase())
+    case 'begins_with':
+      return value.toLowerCase().startsWith(compareValue.toLowerCase())
+    case 'ends_with':
+      return value.toLowerCase().endsWith(compareValue.toLowerCase())
+    case 'is_empty':
+      return value.trim() === ''
+    case 'is_not_empty':
+      return value.trim() !== ''
+    default:
+      return false
+  }
+}
+
+function evaluateConditions(contact: any, conditions: SegmentConditions): boolean {
+  if (!conditions.items || conditions.items.length === 0) return false
+  if (conditions.logic === 'or') {
+    return conditions.items.some((item) => evaluateCondition(contact, item))
+  }
+  return conditions.items.every((item) => evaluateCondition(contact, item))
+}
+
+// ── Refresh segment contacts based on conditions ─────────────────────────────
+
+export async function refreshSegmentContacts(segmentId: string): Promise<{ added: number; removed: number; error: string | null }> {
+  const { supabase, workspaceId } = await getContext()
+  if (!workspaceId) return { added: 0, removed: 0, error: 'No workspace selected' }
+
+  // Load the segment to get conditions
+  const { data: segment } = await supabase
+    .from('segments')
+    .select('conditions')
+    .eq('id', segmentId)
+    .eq('workspace_id', workspaceId)
+    .single<{ conditions: SegmentConditions | null }>()
+
+  if (!segment || !segment.conditions || segment.conditions.items.length === 0) {
+    return { added: 0, removed: 0, error: null }
+  }
+
+  const conditions = segment.conditions
+
+  // Fetch all workspace contacts
+  const { data: contacts, error: contactsError } = await supabase
+    .from('contacts')
+    .select('id, first_name, last_name, email, phone, company, status, custom_fields')
+    .eq('workspace_id', workspaceId)
+
+  if (contactsError) return { added: 0, removed: 0, error: contactsError.message }
+
+  // Evaluate which contacts match
+  const matchingIds = new Set<string>()
+  for (const contact of (contacts ?? []) as any[]) {
+    if (evaluateConditions(contact, conditions)) {
+      matchingIds.add(contact.id)
+    }
+  }
+
+  // Get current segment contacts
+  const { data: current } = await supabase
+    .from('segment_contacts')
+    .select('contact_id')
+    .eq('segment_id', segmentId)
+
+  const currentIds = new Set(((current ?? []) as any[]).map((r) => r.contact_id))
+
+  // Determine adds and removes
+  const toAdd = Array.from(matchingIds).filter((id) => !currentIds.has(id))
+  const toRemove = Array.from(currentIds).filter((id) => !matchingIds.has(id))
+
+  // Insert new matches
+  if (toAdd.length > 0) {
+    await supabase
+      .from('segment_contacts')
+      .insert(toAdd.map((contactId) => ({ segment_id: segmentId, contact_id: contactId })))
+  }
+
+  // Remove contacts that no longer match
+  if (toRemove.length > 0) {
+    await supabase
+      .from('segment_contacts')
+      .delete()
+      .eq('segment_id', segmentId)
+      .in('contact_id', toRemove)
+  }
+
+  return { added: toAdd.length, removed: toRemove.length, error: null }
+}
+
+// ── Refresh all dynamic segments for a workspace (called on contact create/update) ─
+
+export async function refreshWorkspaceSegments(workspaceId: string): Promise<void> {
+  const supabase = await createClient()
+
+  const { data: segments } = await supabase
+    .from('segments')
+    .select('id, conditions')
+    .eq('workspace_id', workspaceId)
+    .not('conditions', 'is', null)
+
+  for (const seg of (segments ?? []) as any[]) {
+    if (seg.conditions?.items?.length > 0) {
+      await refreshSegmentContacts(seg.id)
+    }
+  }
+}
+
 // ── Create a segment ─────────────────────────────────────────────────────────
 
 export async function createSegment(input: {
   name: string
   description?: string
   color?: string
+  conditions?: SegmentConditions | null
 }): Promise<{ segmentId: string | null; error: string | null }> {
   const { supabase, workspaceId, userId } = await getContext()
   if (!workspaceId) return { segmentId: null, error: 'No workspace selected' }
 
   const name = input.name.trim()
   if (!name) return { segmentId: null, error: 'Segment name is required' }
+
+  const conditions = input.conditions ?? null
 
   const { data, error } = await supabase
     .from('segments')
@@ -165,13 +340,19 @@ export async function createSegment(input: {
       name,
       description: input.description?.trim() || null,
       color: input.color || '#6366f1',
+      conditions,
       created_by: userId,
-    })
+    } as any)
     .select('id')
     .single<{ id: string }>()
 
   if (error || !data) {
     return { segmentId: null, error: error?.message ?? 'Failed to create segment' }
+  }
+
+  // If conditions are set, auto-populate matching contacts
+  if (conditions && conditions.items.length > 0) {
+    await refreshSegmentContacts(data.id)
   }
 
   revalidatePath('/contacts')
@@ -182,7 +363,7 @@ export async function createSegment(input: {
 
 export async function updateSegment(
   segmentId: string,
-  input: { name?: string; description?: string; color?: string }
+  input: { name?: string; description?: string; color?: string; conditions?: SegmentConditions | null }
 ): Promise<{ error: string | null }> {
   const { supabase, workspaceId } = await getContext()
   if (!workspaceId) return { error: 'No workspace selected' }
@@ -194,11 +375,17 @@ export async function updateSegment(
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.description !== undefined ? { description: input.description.trim() || null } : {}),
       ...(input.color !== undefined ? { color: input.color } : {}),
-    })
+      ...(input.conditions !== undefined ? { conditions: input.conditions } : {}),
+    } as any)
     .eq('id', segmentId)
     .eq('workspace_id', workspaceId)
 
   if (error) return { error: error.message }
+
+  // If conditions were updated, re-evaluate matching contacts
+  if (input.conditions !== undefined) {
+    await refreshSegmentContacts(segmentId)
+  }
 
   revalidatePath('/contacts')
   return { error: null }
