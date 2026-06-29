@@ -32,7 +32,7 @@ function MetaLeadSync() {
         <Globe className="mx-auto h-12 w-12 text-blue-500/50" />
         <h3 className="mt-4 text-lg font-semibold">Meta Lead Sync</h3>
         <p className="text-sm text-muted-foreground">
-          Advanced Meta Ads integration, lead form management, and attribution analytics.
+          Advanced Meta Ads integrations, leads form management, and attributions analytics.
         </p>
       </div>
     </div>
