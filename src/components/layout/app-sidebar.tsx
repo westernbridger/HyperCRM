@@ -14,7 +14,6 @@ import {
   Shield,
   Menu,
   ChevronDown,
-  Zap,
   LogOut,
   User,
   Settings,
@@ -35,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { HyperLogo } from "@/components/layout/hyper-logo";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -218,11 +218,11 @@ function SidebarContent() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-4 py-5">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Zap className="h-5 w-5" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">HyperCRM</span>
+        <div className="flex items-center gap-2.5">
+          <HyperLogo size={32} />
+          <span className="text-lg font-bold tracking-tight">
+            Hyper<span className="text-amber-500">CRM</span>
+          </span>
         </div>
         {user?.workspace_id && <NotificationBell workspaceId={user.workspace_id} />}
       </div>
@@ -232,14 +232,14 @@ function SidebarContent() {
         <WorkspaceSwitcher />
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-2">
-        {navItems.map((item) => {
+      <nav className="flex-1 space-y-0.5 px-3 py-2">
+        {navItems.map((item, idx) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
+              className="group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-secondary/60"
             >
               {isActive && (
                 <motion.div
@@ -248,8 +248,30 @@ function SidebarContent() {
                   transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                 />
               )}
-              <item.icon className={`relative z-10 h-4 w-4 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
-              <span className={`relative z-10 ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-active-glow"
+                  className="absolute inset-0 rounded-lg"
+                  style={{
+                    background: "linear-gradient(90deg, rgba(251,146,60,0.08) 0%, transparent 100%)",
+                  }}
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              {/* Active indicator bar */}
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-indicator"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-amber-500"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              <item.icon
+                className={"relative z-10 h-4 w-4 shrink-0 transition-colors duration-200 " + (isActive ? "text-amber-400" : "text-muted-foreground group-hover:text-foreground")}
+              />
+              <span
+                className={"relative z-10 transition-colors duration-200 " + (isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")}
+              >
                 {item.label}
               </span>
             </Link>
@@ -354,11 +376,11 @@ export function AppSidebar() {
             <SidebarContent />
           </SheetContent>
         </Sheet>
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Zap className="h-4 w-4" />
-          </div>
-          <span className="text-base font-bold tracking-tight">HyperCRM</span>
+        <div className="flex items-center gap-2.5">
+          <HyperLogo size={28} />
+          <span className="text-base font-bold tracking-tight">
+            Hyper<span className="text-amber-500">CRM</span>
+          </span>
         </div>
       </div>
     </>

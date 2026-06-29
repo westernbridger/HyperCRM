@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import { HyperLogo } from "@/components/layout/hyper-logo";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -58,24 +59,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           {/* Logo area */}
           <div className="mb-8 text-center">
             <div className="inline-flex items-center gap-3 mb-6">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-xl blur-lg opacity-50" />
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 text-white shadow-2xl">
-                  <svg 
-                    className="h-7 w-7" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                  >
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                  </svg>
-                </div>
-              </div>
+              <HyperLogo size={48} showBloom={true} />
               <span className="text-2xl font-bold tracking-tight text-white">
-                HyperCRM
+                Hyper<span className="text-amber-500">CRM</span>
               </span>
             </div>
           </div>
