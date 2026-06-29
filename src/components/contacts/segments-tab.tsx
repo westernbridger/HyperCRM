@@ -25,14 +25,13 @@ import {
   removeContactFromSegment,
   addContactsByEmail,
   importCsvToSegment,
-  SEGMENT_FIELDS,
-  SEGMENT_OPERATORS,
   type Segment,
   type SegmentContact,
   type SegmentConditions,
   type SegmentConditionItem,
   type SegmentOperator,
 } from "@/app/actions/segments";
+import { SEGMENT_FIELDS, SEGMENT_OPERATORS } from "@/lib/segments-constants";
 import { getContacts, type UiContact } from "@/lib/data/contacts";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
