@@ -25,6 +25,8 @@ import {
   Paperclip,
   Download,
   MessageSquareText,
+  Mail,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +74,8 @@ import {
   type Appointment,
   type BookingLink,
   type BookingQuestion,
+  type ConfirmationEmail,
+  type Reminder,
 } from "@/app/actions/appointments";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1060,6 +1064,14 @@ function AppointmentTypeDialog({
   });
   const [timezone, setTimezone] = useState('America/New_York');
   const [questions, setQuestions] = useState<BookingQuestion[]>([]);
+  const [confirmationEmail, setConfirmationEmail] = useState<ConfirmationEmail>({
+    enabled: true,
+    subject: 'Your appointment is booked',
+    body: 'Hi {{client.first_name}},\n\nYour appointment "{{appointment.type_name}}" is confirmed for {{appointment.start_time}}.\n\nLocation: {{appointment.location}}\n\nWe look forward to meeting you!',
+  });
+  const [reminders, setReminders] = useState<Reminder[]>([
+    { enabled: true, hours_before: 24, subject: 'Reminder: your appointment tomorrow', body: 'Hi {{client.first_name}},\n\nThis is a reminder for your appointment "{{appointment.type_name}}" on {{appointment.start_time}}.' },
+  ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1080,6 +1092,14 @@ function AppointmentTypeDialog({
       });
       setTimezone(editingType.timezone ?? 'America/New_York');
       setQuestions(editingType.questions ?? []);
+      setConfirmationEmail(editingType.confirmation_email ?? {
+        enabled: true,
+        subject: 'Your appointment is booked',
+        body: 'Hi {{client.first_name}},\n\nYour appointment "{{appointment.type_name}}" is confirmed for {{appointment.start_time}}.\n\nLocation: {{appointment.location}}\n\nWe look forward to meeting you!',
+      });
+      setReminders(editingType.reminders ?? [
+        { enabled: true, hours_before: 24, subject: 'Reminder: your appointment tomorrow', body: 'Hi {{client.first_name}},\n\nThis is a reminder for your appointment "{{appointment.type_name}}" on {{appointment.start_time}}.' },
+      ]);
     }
   }, [editingType]);
 
@@ -1099,6 +1119,14 @@ function AppointmentTypeDialog({
     });
     setTimezone('America/New_York');
     setQuestions([]);
+    setConfirmationEmail({
+      enabled: true,
+      subject: 'Your appointment is booked',
+      body: 'Hi {{client.first_name}},\n\nYour appointment "{{appointment.type_name}}" is confirmed for {{appointment.start_time}}.\n\nLocation: {{appointment.location}}\n\nWe look forward to meeting you!',
+    });
+    setReminders([
+      { enabled: true, hours_before: 24, subject: 'Reminder: your appointment tomorrow', body: 'Hi {{client.first_name}},\n\nThis is a reminder for your appointment "{{appointment.type_name}}" on {{appointment.start_time}}.' },
+    ]);
     setError(null);
   }
 
@@ -1131,6 +1159,8 @@ function AppointmentTypeDialog({
       availability,
       timezone,
       questions: questions.filter((q) => q.label.trim()),
+      confirmation_email: confirmationEmail,
+      reminders,
     };
     let err: string | null = null;
     if (isEdit && editingType) {
@@ -1366,6 +1396,110 @@ function AppointmentTypeDialog({
             ))}
           </div>
         </div>
+
+          {/* Confirmation Email */}
+          <div className="space-y-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                <Mail className="h-3.5 w-3.5" />
+                Confirmation Email
+              </Label>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={confirmationEmail.enabled}
+                  onChange={(e) => setConfirmationEmail({ ...confirmationEmail, enabled: e.target.checked })}
+                  className="rounded"
+                />
+                Enabled
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">Sent to the client immediately after booking. Use {"{{client.first_name}}"}, {"{{appointment.type_name}}"}, {"{{appointment.start_time}}"}, {"{{appointment.location}}"}.</p>
+            {confirmationEmail.enabled && (
+              <div className="space-y-2">
+                <Input
+                  value={confirmationEmail.subject}
+                  onChange={(e) => setConfirmationEmail({ ...confirmationEmail, subject: e.target.value })}
+                  placeholder="Email subject"
+                  className="h-7 text-xs"
+                />
+                <Textarea
+                  value={confirmationEmail.body}
+                  onChange={(e) => setConfirmationEmail({ ...confirmationEmail, body: e.target.value })}
+                  placeholder="Email body..."
+                  rows={4}
+                  className="text-xs"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Reminders */}
+          <div className="space-y-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                <Bell className="h-3.5 w-3.5" />
+                Automatic Reminders
+              </Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setReminders([...reminders, { enabled: true, hours_before: 1, subject: 'Reminder: your appointment soon', body: 'Hi {{client.first_name}},\n\nYour appointment "{{appointment.type_name}}" starts in 1 hour.' }])}
+                className="h-6 gap-1 text-xs px-2"
+              >
+                <Plus className="h-3 w-3" />
+                Add Reminder
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Sent automatically before the appointment. Same template variables as confirmation email.</p>
+            {reminders.map((r, idx) => (
+              <div key={idx} className="rounded-lg border border-border bg-secondary/30 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={r.enabled}
+                      onChange={(e) => setReminders(reminders.map((rm, i) => i === idx ? { ...rm, enabled: e.target.checked } : rm))}
+                      className="rounded"
+                    />
+                    <span className="font-medium">Reminder {idx + 1}</span>
+                  </label>
+                  {reminders.length > 1 && (
+                    <button
+                      onClick={() => setReminders(reminders.filter((_, i) => i !== idx))}
+                      className="text-muted-foreground hover:text-red-400 p-0.5"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Send</span>
+                  <Input
+                    type="number"
+                    value={r.hours_before}
+                    onChange={(e) => setReminders(reminders.map((rm, i) => i === idx ? { ...rm, hours_before: Number(e.target.value) } : rm))}
+                    min={1}
+                    className="h-7 w-16 text-xs"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">hour(s) before</span>
+                </div>
+                <Input
+                  value={r.subject}
+                  onChange={(e) => setReminders(reminders.map((rm, i) => i === idx ? { ...rm, subject: e.target.value } : rm))}
+                  placeholder="Reminder subject"
+                  className="h-7 text-xs"
+                />
+                <Textarea
+                  value={r.body}
+                  onChange={(e) => setReminders(reminders.map((rm, i) => i === idx ? { ...rm, body: e.target.value } : rm))}
+                  placeholder="Reminder body..."
+                  rows={3}
+                  className="text-xs"
+                />
+              </div>
+            ))}
+          </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

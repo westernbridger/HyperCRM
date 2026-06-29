@@ -3,6 +3,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { getAuthUrl, getBusyTimes, createCalendarEvent, deleteCalendarEvent, refreshAccessToken } from '@/lib/google/calendar'
 import { zonedWallTimeToUtc, datePartsInTimeZone } from '@/lib/timezone'
+import { sendEmail } from '@/lib/email/resend'
+import { resolveTemplate } from '@/lib/email/liquid'
+import { getSignatureHtml } from '@/app/actions/email-signature'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,6 +17,19 @@ export type CalendarConnection = {
   calendar_name: string | null
   sync_enabled: boolean
   last_synced_at: string | null
+}
+
+export type ConfirmationEmail = {
+  enabled: boolean
+  subject: string
+  body: string
+}
+
+export type Reminder = {
+  enabled: boolean
+  hours_before: number
+  subject: string
+  body: string
 }
 
 export type AppointmentType = {
@@ -34,6 +50,8 @@ export type AppointmentType = {
   min_notice_h: number
   max_days_ahead: number
   questions: BookingQuestion[]
+  confirmation_email: ConfirmationEmail
+  reminders: Reminder[]
   created_at: string
   updated_at: string
 }
@@ -76,6 +94,7 @@ export type Appointment = {
   client_email: string | null
   client_phone: string | null
   booking_answers: BookingAnswer[] | null
+  reminders_sent: Record<string, string> | null
   notes: string | null
   is_followup: boolean
   parent_appointment_id: string | null
@@ -194,6 +213,8 @@ export async function createAppointmentType(input: {
   min_notice_h?: number
   max_days_ahead?: number
   questions?: BookingQuestion[]
+  confirmation_email?: ConfirmationEmail
+  reminders?: Reminder[]
 }): Promise<{ data: AppointmentType | null; error: string | null }> {
   const { supabase, workspaceId, userId } = await getContext()
   if (!workspaceId) return { data: null, error: 'Not authenticated' }
@@ -226,6 +247,14 @@ export async function createAppointmentType(input: {
       min_notice_h: input.min_notice_h ?? 2,
       max_days_ahead: input.max_days_ahead ?? 30,
       questions: input.questions ?? [],
+      confirmation_email: input.confirmation_email ?? {
+        enabled: true,
+        subject: 'Your appointment is booked',
+        body: 'Hi {{client.first_name}},\n\nYour appointment "{{appointment.type_name}}" is confirmed for {{appointment.start_time}}.\n\nLocation: {{appointment.location}}\n\nWe look forward to meeting you!',
+      },
+      reminders: input.reminders ?? [
+        { enabled: true, hours_before: 24, subject: 'Reminder: your appointment tomorrow', body: 'Hi {{client.first_name}},\n\nThis is a reminder for your appointment "{{appointment.type_name}}" on {{appointment.start_time}}.' },
+      ],
     } as any)
     .select()
     .single()
@@ -865,6 +894,104 @@ export async function getAppointmentTypeBySlug(
   return { data: data as unknown as AppointmentType, error: null }
 }
 
+// ── Appointment email helpers ─────────────────────────────────────────────────
+
+async function resolveWorkspaceSender(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string
+): Promise<{ from: string | null; replyTo: string | null; workspaceName: string }> {
+  const { data: ws } = await supabase
+    .from('workspaces')
+    .select('name, inbound_email')
+    .eq('id', workspaceId)
+    .single<{ name: string; inbound_email: string | null }>()
+
+  const { data: sender } = await supabase
+    .from('workspace_email_domains')
+    .select('from_name, from_email, status, is_default')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'verified')
+    .order('is_default', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ from_name: string | null; from_email: string }>()
+
+  const from = sender
+    ? (sender.from_name ? `${sender.from_name} <${sender.from_email}>` : sender.from_email)
+    : null
+  const replyTo = ws?.inbound_email ?? null
+  return { from, replyTo, workspaceName: ws?.name ?? '' }
+}
+
+function textToHtml(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const withBreaks = escaped.replace(/\n/g, '<br/>')
+  return `<div style="font-family:ui-sans-serif,system-ui,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;">${withBreaks}</div>`
+}
+
+function buildAppointmentEmailContext(
+  clientName: string,
+  clientEmail: string,
+  apptType: any,
+  startTime: string,
+  location: string,
+  workspaceName: string,
+  reminderHoursBefore?: number
+): Record<string, any> {
+  const firstName = clientName.split(' ')[0] || clientName
+  const locationStr = location || (apptType.meeting_type === 'video' ? 'Video call (link will be provided)' : apptType.meeting_type === 'phone' ? 'Phone call' : 'In person')
+  const formattedTime = new Date(startTime).toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  })
+  return {
+    client: { first_name: firstName, full_name: clientName, email: clientEmail },
+    appointment: {
+      type_name: apptType.name,
+      start_time: formattedTime,
+      location: locationStr,
+      duration_min: apptType.duration_min,
+    },
+    reminder: { hours_before: reminderHoursBefore ?? 0 },
+    workspace: { name: workspaceName },
+  }
+}
+
+async function sendAppointmentEmail(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  toEmail: string,
+  subjectTemplate: string,
+  bodyTemplate: string,
+  ctx: Record<string, any>
+): Promise<void> {
+  try {
+    const { from, replyTo } = await resolveWorkspaceSender(supabase, workspaceId)
+    const signatureHtml = await getSignatureHtml(supabase, workspaceId)
+
+    const subject = resolveTemplate(subjectTemplate, ctx as any)
+    const body = resolveTemplate(bodyTemplate, ctx as any)
+    const html = textToHtml(body) + (signatureHtml ? signatureHtml : '')
+
+    await sendEmail({
+      to: toEmail,
+      subject,
+      html,
+      ...(from ? { from } : {}),
+      ...(replyTo ? { replyTo } : {}),
+    })
+  } catch (e) {
+    console.error('[appointment-email] Error sending (non-fatal):', e)
+  }
+}
+
 export async function bookAppointmentByLink(
   slug: string,
   input: {
@@ -1001,6 +1128,33 @@ export async function bookAppointmentByLink(
     }
   } catch (e) {
     console.error('Calendar sync error (non-fatal):', e)
+  }
+
+  // Send confirmation email to the client if enabled
+  try {
+    const confEmail = (apptType as any).confirmation_email as ConfirmationEmail | undefined
+    if (confEmail?.enabled && input.client_email) {
+      const { workspaceName } = await resolveWorkspaceSender(supabase, workspaceId)
+      const location = (data as any).meeting_url || (data as any).location || (data as any).phone_number || ''
+      const ctx = buildAppointmentEmailContext(
+        input.client_name,
+        input.client_email,
+        apptType,
+        input.start_time,
+        location,
+        workspaceName
+      )
+      await sendAppointmentEmail(
+        supabase,
+        workspaceId,
+        input.client_email,
+        confEmail.subject,
+        confEmail.body,
+        ctx
+      )
+    }
+  } catch (e) {
+    console.error('Confirmation email error (non-fatal):', e)
   }
 
   return { data: data as unknown as Appointment, error: null }

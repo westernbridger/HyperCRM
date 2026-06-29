@@ -42,8 +42,12 @@ create table if not exists public.appointment_types (
   slug          text,                          -- URL slug for booking link
   min_notice_h  int not null default 2,        -- minimum hours before a slot
   max_days_ahead int not null default 30,      -- how far in advance clients can book
-  -- Custom questions for the booking form: [{ "id": "uuid", "label": "What is your budget?", "type": "text" | "textarea" | "select", "required": false, "options": ["a","b"] }]
+  -- Custom questions for the booking form: [{ "id": "uuid", "label": "What is your budget?", "type": "text" | "textarea" | "select" | "file", "required": false, "options": ["a","b"] }]
   questions     jsonb not null default '[]'::jsonb,
+  -- Confirmation email template sent to client after booking: { "enabled": true, "subject": "...", "body": "..." }
+  confirmation_email jsonb not null default '{"enabled": true, "subject": "Your appointment is booked", "body": "Hi {{client.first_name}},\n\nYour appointment \"{{appointment.type_name}}\" is confirmed for {{appointment.start_time}}.\n\nLocation: {{appointment.location}}\n\nWe look forward to meeting you!"}'::jsonb,
+  -- Reminder schedule: [{ "enabled": true, "hours_before": 24, "subject": "...", "body": "..." }]
+  reminders     jsonb not null default '[{"enabled": true, "hours_before": 24, "subject": "Reminder: your appointment tomorrow", "body": "Hi {{client.first_name}},\n\nThis is a reminder for your appointment \"{{appointment.type_name}}\" on {{appointment.start_time}}."}]'::jsonb,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -75,8 +79,10 @@ create table if not exists public.appointments (
   client_name        text,
   client_email       text,
   client_phone       text,
-  -- Answers to custom booking questions: [{ "question_id": "uuid", "label": "...", "answer": "..." }]
+  -- Answers to custom booking questions: [{ "question_id": "uuid", "label": "...", "answer": "...", "type": "text", "file_url": "...", "file_name": "..." }]
   booking_answers    jsonb,
+  -- Tracks which reminders have been sent: { "reminder_index_hours_before": "2024-01-01T00:00:00Z" }
+  reminders_sent     jsonb not null default '{}'::jsonb,
   -- Notes & follow-up
   notes              text,
   is_followup        boolean not null default false,
@@ -341,3 +347,18 @@ drop policy if exists "booking_attachments_public_select" on storage.objects;
 create policy "booking_attachments_public_select" on storage.objects
   for select to public
   using (bucket_id = 'booking-attachments');
+
+-- ── Migrations for existing tables ──────────────────────────────────────────
+-- Add new columns if they don't already exist (safe to re-run).
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_name = 'appointment_types' and column_name = 'confirmation_email') then
+    alter table public.appointment_types add column confirmation_email jsonb not null default '{"enabled": true, "subject": "Your appointment is booked", "body": "Hi {{client.first_name}},\n\nYour appointment \"{{appointment.type_name}}\" is confirmed for {{appointment.start_time}}.\n\nLocation: {{appointment.location}}\n\nWe look forward to meeting you!"}'::jsonb;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'appointment_types' and column_name = 'reminders') then
+    alter table public.appointment_types add column reminders jsonb not null default '[{"enabled": true, "hours_before": 24, "subject": "Reminder: your appointment tomorrow", "body": "Hi {{client.first_name}},\n\nThis is a reminder for your appointment \"{{appointment.type_name}}\" on {{appointment.start_time}}."}]'::jsonb;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'appointments' and column_name = 'reminders_sent') then
+    alter table public.appointments add column reminders_sent jsonb not null default '{}'::jsonb;
+  end if;
+end $$;
