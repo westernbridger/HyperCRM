@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
   const now = new Date()
-  const lookAhead = new Date(now.getTime() + 72 * 60 * 60 * 1000) // 72h window
+  const lookAhead = new Date(now.getTime() + 48 * 60 * 60 * 1000) // 48h window (daily cron)
 
   // Fetch all confirmed appointments starting within the next 72h
   const { data: appointments, error } = await admin
