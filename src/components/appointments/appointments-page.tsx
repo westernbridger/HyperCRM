@@ -1477,10 +1477,19 @@ function AppointmentTypeDialog({
                   <span className="text-xs text-muted-foreground whitespace-nowrap">Send</span>
                   <Input
                     type="number"
-                    value={r.hours_before}
-                    onChange={(e) => setReminders(reminders.map((rm, i) => i === idx ? { ...rm, hours_before: Number(e.target.value) } : rm))}
-                    min={1}
-                    className="h-7 w-16 text-xs"
+                    value={Math.floor(r.hours_before / 24)}
+                    onChange={(e) => setReminders(reminders.map((rm, i) => i === idx ? { ...rm, hours_before: Number(e.target.value) * 24 + (rm.hours_before % 24) } : rm))}
+                    min={0}
+                    className="h-7 w-14 text-xs"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">day(s) and</span>
+                  <Input
+                    type="number"
+                    value={r.hours_before % 24}
+                    onChange={(e) => setReminders(reminders.map((rm, i) => i === idx ? { ...rm, hours_before: Math.floor(rm.hours_before / 24) * 24 + Number(e.target.value) } : rm))}
+                    min={0}
+                    max={23}
+                    className="h-7 w-14 text-xs"
                   />
                   <span className="text-xs text-muted-foreground whitespace-nowrap">hour(s) before</span>
                 </div>
