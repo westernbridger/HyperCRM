@@ -135,6 +135,39 @@ export type BroadcastStatus = 'draft' | 'sending' | 'sent' | 'partial_failure'
 
 export type BroadcastRecipientStatus = 'pending' | 'sent' | 'failed'
 
+// ── Automation (workflows) ────────────────────────────────────────────────────
+export type WorkflowTriggerType =
+  | 'contact_created'
+  | 'contact_status_changed'
+  | 'contact_added_to_segment'
+  | 'contact_updated'
+
+export type WorkflowActionType =
+  | 'send_email'
+  | 'add_to_segment'
+  | 'update_status'
+  | 'add_tag'
+  | 'create_activity'
+
+export type WorkflowStatus = 'active' | 'paused' | 'draft'
+
+export type Workflow = {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  status: WorkflowStatus
+  trigger_type: WorkflowTriggerType
+  trigger_config: Record<string, any>
+  action_type: WorkflowActionType
+  action_config: Record<string, any>
+  run_count: number
+  last_run_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -841,16 +874,22 @@ export type Database = {
         Row: {
           segment_id: string
           contact_id: string
+          workspace_id: string
+          added_by: string | null
           added_at: string
         }
         Insert: {
           segment_id: string
           contact_id: string
+          workspace_id?: string
+          added_by?: string | null
           added_at?: string
         }
         Update: {
           segment_id?: string
           contact_id?: string
+          workspace_id?: string
+          added_by?: string | null
           added_at?: string
         }
         Relationships: []
@@ -1210,6 +1249,57 @@ export type Database = {
           description?: string | null
           appointment_type_ids?: string[]
           is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workflows: {
+        Row: {
+          id: string
+          workspace_id: string
+          name: string
+          description: string | null
+          status: WorkflowStatus
+          trigger_type: WorkflowTriggerType
+          trigger_config: Record<string, any>
+          action_type: WorkflowActionType
+          action_config: Record<string, any>
+          run_count: number
+          last_run_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          name: string
+          description?: string | null
+          status?: WorkflowStatus
+          trigger_type: WorkflowTriggerType
+          trigger_config?: Record<string, any>
+          action_type: WorkflowActionType
+          action_config?: Record<string, any>
+          run_count?: number
+          last_run_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          name?: string
+          description?: string | null
+          status?: WorkflowStatus
+          trigger_type?: WorkflowTriggerType
+          trigger_config?: Record<string, any>
+          action_type?: WorkflowActionType
+          action_config?: Record<string, any>
+          run_count?: number
+          last_run_at?: string | null
+          created_by?: string | null
           created_at?: string
           updated_at?: string
         }

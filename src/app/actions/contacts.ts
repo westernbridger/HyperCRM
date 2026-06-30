@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { env } from '@/lib/env'
 import { refreshWorkspaceSegments } from '@/app/actions/segments'
+import { triggerWorkflows } from '@/app/actions/automation'
 
 function generateInboundEmail(): string {
   const domain = env.resendInboundDomain || 'email.hypercrm.ca'
@@ -243,6 +244,9 @@ export async function createContact(
     // Refresh dynamic segments for this workspace
     await refreshWorkspaceSegments(workspaceId).catch((e) => console.error('Segment refresh error:', e))
 
+    // Trigger automation workflows for contact_created
+    await triggerWorkflows(workspaceId, 'contact_created', data.id).catch((e) => console.error('Automation trigger error:', e))
+
     revalidatePath('/contacts')
     return { data: data as Contact, error: null }
   } catch (err) {
@@ -303,6 +307,13 @@ export async function updateContact(
 
     // Refresh dynamic segments for this workspace
     await refreshWorkspaceSegments(workspaceId).catch((e) => console.error('Segment refresh error:', e))
+
+    // Trigger automation workflows for contact_status_changed or contact_updated
+    if (input.status && oldStatus && input.status !== oldStatus) {
+      await triggerWorkflows(workspaceId, 'contact_status_changed', id, { oldStatus, newStatus: input.status }).catch((e) => console.error('Automation trigger error:', e))
+    } else {
+      await triggerWorkflows(workspaceId, 'contact_updated', id).catch((e) => console.error('Automation trigger error:', e))
+    }
 
     revalidatePath('/contacts')
     revalidatePath(`/contacts/${id}`)

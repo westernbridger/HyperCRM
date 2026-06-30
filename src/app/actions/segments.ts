@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { triggerWorkflows } from '@/app/actions/automation'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -415,6 +416,11 @@ export async function addContactsToSegment(
   // Ignore unique constraint violations (already in segment)
   if (error && error.code !== '23505') {
     return { added: 0, error: error.message }
+  }
+
+  // Trigger automation workflows for each added contact
+  for (const contactId of contactIds) {
+    await triggerWorkflows(workspaceId, 'contact_added_to_segment', contactId, { segmentId }).catch((e) => console.error('Automation trigger error:', e))
   }
 
   revalidatePath('/contacts')
