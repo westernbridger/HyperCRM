@@ -168,6 +168,23 @@ export type Workflow = {
   updated_at: string
 }
 
+// ── Documents Library ─────────────────────────────────────────────────────────
+export type DocumentCategory = 'general' | 'contract' | 'invoice' | 'proposal' | 'resume' | 'image' | 'other'
+
+export type DocumentFile = {
+  id: string
+  workspace_id: string
+  name: string
+  file_path: string
+  file_size: number
+  file_type: string
+  category: DocumentCategory
+  contact_id: string | null
+  uploaded_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -1300,6 +1317,48 @@ export type Database = {
           run_count?: number
           last_run_at?: string | null
           created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      documents: {
+        Row: {
+          id: string
+          workspace_id: string
+          name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          category: DocumentCategory
+          contact_id: string | null
+          uploaded_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          name: string
+          file_path: string
+          file_size?: number
+          file_type?: string
+          category?: DocumentCategory
+          contact_id?: string | null
+          uploaded_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          name?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          category?: DocumentCategory
+          contact_id?: string | null
+          uploaded_by?: string | null
           created_at?: string
           updated_at?: string
         }

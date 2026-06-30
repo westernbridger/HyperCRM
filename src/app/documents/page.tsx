@@ -13,6 +13,7 @@ import {
   ToggleLeft,
   Lock,
   ExternalLink,
+  FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +36,9 @@ import {
 } from "@/app/actions/checklists";
 import type { HyperFormField } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
+import { DocumentLibrary } from "@/components/documents/document-library";
 
-type DocTab = "forms" | "checklists";
+type DocTab = "forms" | "checklists" | "library";
 
 export default function DocumentsPage() {
   const router = useRouter();
@@ -181,6 +183,16 @@ export default function DocumentsPage() {
             <ListChecks className="h-3.5 w-3.5" />
             Checklists
           </button>
+          <button
+            onClick={() => { setTab("library"); setSelectedForm(null); }}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+              tab === "library" ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/50"
+            )}
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Library
+          </button>
         </div>
 
         {/* Search */}
@@ -311,7 +323,15 @@ export default function DocumentsPage() {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-6 md:p-8">
-        {isChecklistTab ? (
+        {tab === "library" ? (
+          <div>
+            <div className="mb-4">
+              <h1 className="text-xl font-bold tracking-tight">Document Library</h1>
+              <p className="text-sm text-muted-foreground">Upload, preview, and link files to contacts.</p>
+            </div>
+            <DocumentLibrary />
+          </div>
+        ) : isChecklistTab ? (
           <EmptyState type="checklist" onCreate={() => setShowCreate(true)} />
         ) : selectedForm ? (
           <FormDetail
