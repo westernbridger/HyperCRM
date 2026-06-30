@@ -2,6 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email/resend'
+import { resolveTemplate, type TemplateContext } from '@/lib/email/liquid'
+import { getSignatureHtml } from '@/app/actions/email-signature'
+import { resolveWorkspaceSender } from '@/app/actions/communications'
 import { revalidatePath } from 'next/cache'
 import type {
   Workflow,
@@ -216,10 +219,47 @@ export async function runWorkflowForContact(
           actionError = 'Contact has no email'
           break
         }
+
+        // Load workspace name + inbound_email for liquid templating and sender
+        const { data: ws } = await supabase
+          .from('workspaces')
+          .select('name, inbound_email')
+          .eq('id', workspaceId)
+          .single<{ name: string; inbound_email: string | null }>()
+
+        // Build liquid template context
+        const tplCtx: TemplateContext = {
+          contact: {
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            email: contact.email,
+            phone: contact.phone,
+            company: contact.company,
+            status: contact.status,
+            custom_fields: contact.custom_fields ?? {},
+          },
+          workspace: { name: ws?.name ?? '' },
+        }
+
+        // Resolve liquid templates (with fallback support)
+        const subject = resolveTemplate(actionConfig.subject || 'Automated message', tplCtx)
+        const bodyContent = resolveTemplate(actionConfig.body || '<p>Automated message</p>', tplCtx)
+
+        // Append workspace email signature
+        const signatureHtml = await getSignatureHtml(supabase, workspaceId)
+        const html = signatureHtml ? `${bodyContent}${signatureHtml}` : bodyContent
+
+        // Resolve workspace sender + reply-to
+        const fromAddr = await resolveWorkspaceSender(supabase, workspaceId)
+        const replyTo = ws?.inbound_email ?? undefined
+        const finalFrom = fromAddr ?? (ws?.inbound_email ? `${ws.name} <${ws.inbound_email}>` : undefined)
+
         const { sent, error: sendErr } = await sendEmail({
           to: contact.email,
-          subject: actionConfig.subject || 'Automated message',
-          html: actionConfig.body || '<p>Automated message</p>',
+          subject,
+          html,
+          ...(finalFrom ? { from: finalFrom } : {}),
+          ...(replyTo ? { replyTo } : {}),
         })
         actionSuccess = sent
         actionError = sendErr

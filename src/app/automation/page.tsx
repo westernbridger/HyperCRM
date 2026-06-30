@@ -20,6 +20,7 @@ import {
   CheckCircle,
   Pencil,
   AlertCircle,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -592,14 +593,71 @@ function WorkflowEditor({
                   <Textarea
                     value={actionConfig.body ?? ""}
                     onChange={(e) => setActionConfig((p) => ({ ...p, body: e.target.value }))}
-                    placeholder="<p>Hi {{contact.first_name}}, welcome aboard!</p>"
+                    placeholder="<p>Hi {{contact.first_name | default: &quot;there&quot;}}, welcome aboard!</p>"
                     rows={5}
                     className="font-mono text-xs"
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    Use {"{{contact.first_name}}"}, {"{{contact.last_name}}"}, {"{{contact.email}}"} for personalization.
-                  </p>
                 </div>
+
+                {/* Variable picker */}
+                <div className="rounded-lg border border-border bg-secondary/30 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                    Insert variables — click to add to body
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: "First Name", token: "{{contact.first_name}}" },
+                      { label: "Last Name", token: "{{contact.last_name}}" },
+                      { label: "Email", token: "{{contact.email}}" },
+                      { label: "Phone", token: "{{contact.phone}}" },
+                      { label: "Company", token: "{{contact.company}}" },
+                      { label: "Status", token: "{{contact.status}}" },
+                      { label: "Workspace", token: "{{workspace.name}}" },
+                    ].map((v) => (
+                      <button
+                        key={v.token}
+                        type="button"
+                        onClick={() => setActionConfig((p) => ({ ...p, body: (p.body ?? "") + ` ${v.token}` }))}
+                        className="rounded-md border border-border bg-background px-2 py-1 text-[11px] font-mono text-muted-foreground hover:text-foreground hover:border-indigo-500/40 transition-colors"
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Fallback guidance */}
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-amber-400">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Fallback values — recommended for automations
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Since you don&apos;t know who will trigger this workflow, add fallbacks for fields that might be empty.
+                    Use the pipe syntax: <code className="font-mono text-amber-300">{"{{contact.first_name | default: \"there\"}}"}</code>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      { label: "First Name + fallback", token: '{{contact.first_name | default: "there"}}' },
+                      { label: "Company + fallback", token: '{{contact.company | default: "your team"}}' },
+                      { label: "Phone + fallback", token: '{{contact.phone | default: "N/A"}}' },
+                    ].map((v) => (
+                      <button
+                        key={v.token}
+                        type="button"
+                        onClick={() => setActionConfig((p) => ({ ...p, body: (p.body ?? "") + ` ${v.token}` }))}
+                        className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1 text-[11px] font-mono text-amber-300 hover:bg-amber-500/10 transition-colors"
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground">
+                  Your workspace email signature is automatically appended to every automated email.
+                </p>
               </div>
             )}
 

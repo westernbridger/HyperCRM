@@ -71,7 +71,7 @@ async function getContext(): Promise<{
 
 // Resolve the workspace's default VERIFIED sender, formatted for Resend
 // ("Name <addr@domain>"). Returns null to fall back to the shared sender.
-async function resolveWorkspaceSender(
+export async function resolveWorkspaceSender(
   supabase: Awaited<ReturnType<typeof createClient>>,
   workspaceId: string
 ): Promise<string | null> {
