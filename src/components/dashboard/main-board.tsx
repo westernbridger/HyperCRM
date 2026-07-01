@@ -161,9 +161,11 @@ export function MainBoard() {
       if (savedLayouts && savedLayouts.length > 0) {
         const updatedWidgets = DEFAULT_WIDGETS.map(widget => {
           const saved = savedLayouts.find((l: WidgetLayout) => l.id === widget.id);
-          return saved
-            ? { ...widget, x: saved.x, y: saved.y, visible: saved.visible }
-            : widget;
+          if (!saved) return widget;
+          // Migrate old layouts that used position instead of x/y
+          const x = typeof saved.x === "number" ? saved.x : widget.x;
+          const y = typeof saved.y === "number" ? saved.y : widget.y;
+          return { ...widget, x, y, visible: saved.visible };
         });
         setWidgets(updatedWidgets);
         const hidden = savedLayouts
@@ -242,14 +244,14 @@ export function MainBoard() {
   const visibleWidgets = widgets.filter(w => !hiddenWidgets.includes(w.id));
   const activeWidget = activeId ? widgets.find(w => w.id === activeId) : null;
 
-  // Compute canvas size from widget positions
+  // Compute canvas size from widget positions (guard against NaN)
   const canvasWidth = Math.max(
-    ...visibleWidgets.map(w => w.x + WIDGET_SIZES[w.size].w),
     1200,
+    ...visibleWidgets.map(w => (w.x || 0) + WIDGET_SIZES[w.size].w),
   ) + 80;
   const canvasHeight = Math.max(
-    ...visibleWidgets.map(w => w.y + WIDGET_SIZES[w.size].h),
     600,
+    ...visibleWidgets.map(w => (w.y || 0) + WIDGET_SIZES[w.size].h),
   ) + 80;
 
   return (
