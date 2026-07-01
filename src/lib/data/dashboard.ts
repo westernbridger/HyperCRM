@@ -6,7 +6,8 @@ const STORAGE_KEY = "hypercrm_dashboard_layouts";
 
 export interface WidgetLayout {
   id: string;
-  position: number;
+  x: number;
+  y: number;
   visible: boolean;
   // Additional config per widget type
   config?: Record<string, any>;

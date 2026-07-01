@@ -1,16 +1,11 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
 import {
   GripVertical,
   MoreHorizontal,
-  Maximize2,
-  ChevronDown,
-  ChevronUp,
   EyeOff,
 } from "lucide-react";
 import { CardHeader, CardContent, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,13 +13,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Widget Card Component with Collapsible & Drag Controls
+// Widget Card — fixed-size "post-it" with internal scroll, no collapse.
 export function WidgetCard({
   children,
   className = "",
   title,
-  collapsed,
-  onToggleCollapse,
   onToggleVisibility,
   dragHandleProps,
   isDragging,
@@ -33,8 +26,6 @@ export function WidgetCard({
   children: React.ReactNode;
   className?: string;
   title: string;
-  collapsed: boolean;
-  onToggleCollapse: () => void;
   onToggleVisibility: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragging?: boolean;
@@ -42,48 +33,32 @@ export function WidgetCard({
 }) {
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border bg-card transition-all duration-200 ${
+      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow duration-200 ${
         isOverlay
-          ? "border-amber-500/30 shadow-2xl shadow-black/40 ring-1 ring-amber-500/20"
+          ? "border-amber-500/30 shadow-2xl shadow-black/50 ring-1 ring-amber-500/20"
           : isDragging
-            ? "border-dashed border-border/40 bg-card/30 opacity-40"
-            : "border-border shadow-sm hover:border-border/80 hover:shadow-md"
+            ? "border-dashed border-border/40 bg-card/20 opacity-30"
+            : "border-border shadow-sm hover:shadow-md"
       } ${className}`}
-      style={{ minHeight: collapsed ? "52px" : undefined }}
     >
-      <CardHeader className={`relative flex flex-row items-center justify-between ${collapsed ? "pb-4" : "pb-2"} cursor-default`}>
-        <div className="flex items-center gap-2">
-          {/* Drag Handle */}
+      <CardHeader className="flex flex-row items-center justify-between py-2.5 px-3 pb-2 cursor-default shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
           <div
             {...dragHandleProps}
-            className="cursor-grab active:cursor-grabbing p-1 rounded transition-colors"
+            className="cursor-grab active:cursor-grabbing p-1 rounded transition-colors shrink-0"
           >
             <GripVertical className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
           </div>
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardTitle className="text-sm font-medium text-muted-foreground truncate">
             {title}
           </CardTitle>
         </div>
-        <div className="flex items-center gap-1">
-          {/* Collapse Toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 text-muted-foreground/50 hover:text-muted-foreground"
-            onClick={onToggleCollapse}
-          >
-            {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-          </Button>
-
+        <div className="flex items-center gap-1 shrink-0">
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground/50 hover:text-muted-foreground">
-              <MoreHorizontal className="h-4 w-4" />
+            <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground/50 hover:text-muted-foreground">
+              <MoreHorizontal className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onToggleCollapse}>
-                {collapsed ? <Maximize2 className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
-                {collapsed ? "Expand" : "Collapse"}
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={onToggleVisibility}>
                 <EyeOff className="mr-2 h-4 w-4" />
                 Hide Widget
@@ -93,21 +68,9 @@ export function WidgetCard({
         </div>
       </CardHeader>
 
-      <AnimatePresence initial={false} mode="wait">
-        {!collapsed && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="overflow-hidden"
-          >
-            <CardContent className="relative p-4 pt-0">
-              {children}
-            </CardContent>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <CardContent className="relative flex-1 overflow-y-auto p-3 pt-0">
+        {children}
+      </CardContent>
     </div>
   );
 }
