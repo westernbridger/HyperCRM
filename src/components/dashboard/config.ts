@@ -27,19 +27,10 @@ export interface WidgetConfig {
   type: WidgetType;
   title: string;
   size: WidgetSize;
-  x: number;
-  y: number;
+  position: number;
+  collapsed: boolean;
   visible: boolean;
 }
-
-// Snap interval for the free-form canvas (pixels).
-export const GRID = 40;
-
-// Fixed footprints per size (multiples of GRID).
-export const WIDGET_SIZES: Record<WidgetSize, { w: number; h: number }> = {
-  small: { w: 200, h: 160 },
-  large: { w: 400, h: 320 },
-};
 
 // Activity type → icon/color map
 export const ACTIVITY_ICON_MAP: Record<string, { icon: React.ElementType; color: string }> = {
@@ -79,15 +70,14 @@ export const newsHeadlines = [
   { id: 5, title: "AI-Powered Email Campaigns Drive Higher Engagement", source: "HubSpot", time: "12h ago", category: "Marketing" },
 ];
 
-// Default widget configuration — free-form canvas positions (x, y in px).
-// Layout: two rows of large content widgets, stat widgets stacked on the right.
+// Default widget configuration — traditional grid layout.
 export const DEFAULT_WIDGETS: WidgetConfig[] = [
-  { id: "leads",       type: "leads",       title: "Lead Ingestion Velocity", size: "large", x: 0,    y: 0,   visible: true },
-  { id: "activity",    type: "activity",    title: "Live CRM Activity Pulse", size: "large", x: 440,  y: 0,   visible: true },
-  { id: "ai-composer", type: "ai-composer", title: "AI Composer Quick-Dock",  size: "large", x: 880,  y: 0,   visible: true },
-  { id: "contacts",    type: "contacts",    title: "Total Contacts",          size: "small", x: 1320, y: 0,   visible: true },
-  { id: "conversion",  type: "conversion",  title: "Conversion Rate",         size: "small", x: 1320, y: 200, visible: true },
-  { id: "meta",        type: "meta",        title: "Meta Ads Monitor",        size: "large", x: 0,    y: 360, visible: true },
-  { id: "weather",     type: "weather",     title: "Weather",                 size: "large", x: 440,  y: 360, visible: true },
-  { id: "news",        type: "news",        title: "Industry News",           size: "large", x: 880,  y: 360, visible: true },
+  { id: "leads",       type: "leads",       title: "Lead Ingestion Velocity", size: "large",  position: 0, collapsed: false, visible: true },
+  { id: "activity",    type: "activity",    title: "Live CRM Activity Pulse", size: "large",  position: 1, collapsed: false, visible: true },
+  { id: "ai-composer", type: "ai-composer", title: "AI Composer Quick-Dock",  size: "large",  position: 2, collapsed: false, visible: true },
+  { id: "contacts",    type: "contacts",    title: "Total Contacts",          size: "small",  position: 3, collapsed: false, visible: true },
+  { id: "conversion",  type: "conversion",  title: "Conversion Rate",         size: "small",  position: 4, collapsed: false, visible: true },
+  { id: "meta",        type: "meta",        title: "Meta Ads Monitor",        size: "large",  position: 5, collapsed: false, visible: true },
+  { id: "weather",     type: "weather",     title: "Weather",                 size: "large",  position: 6, collapsed: false, visible: true },
+  { id: "news",        type: "news",        title: "Industry News",           size: "large",  position: 7, collapsed: false, visible: true },
 ];

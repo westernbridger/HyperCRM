@@ -9,7 +9,7 @@ import { newsHeadlines } from "@/components/dashboard/config";
 // News Widget (demo data)
 export function NewsWidget() {
   return (
-    <ScrollArea className="h-full min-h-0">
+    <ScrollArea className="h-full">
       <div className="space-y-3 pr-4">
         <div className="flex justify-end pb-1">
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-border text-muted-foreground">Demo data</Badge>
