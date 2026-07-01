@@ -25,10 +25,10 @@ export function LeadIngestionVelocity() {
   const hasData = leadData.length > 0;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="h-[160px] w-full min-h-[160px]">
+    <div className="flex flex-col gap-3 h-full">
+      <div className="flex-1 min-h-0 w-full">
         {mounted && (
-          <ResponsiveContainer width="100%" height={160}>
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={leadData}>
               <defs>
                 <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">

@@ -33,7 +33,7 @@ export function WidgetCard({
 }) {
   return (
     <div
-      className={`group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow duration-200 ${
+      className={`group relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card transition-shadow duration-200 ${
         isOverlay
           ? "border-amber-500/30 shadow-2xl shadow-black/50 ring-1 ring-amber-500/20"
           : isDragging
@@ -68,7 +68,7 @@ export function WidgetCard({
         </div>
       </CardHeader>
 
-      <CardContent className="relative flex-1 overflow-y-auto p-3 pt-0">
+      <CardContent className="relative min-h-0 flex-1 overflow-y-auto p-3 pt-0">
         {children}
       </CardContent>
     </div>
