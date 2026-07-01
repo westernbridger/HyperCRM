@@ -42,7 +42,7 @@ export function LiveActivityPulse() {
   }
 
   return (
-    <ScrollArea className="h-full pr-4">
+    <ScrollArea className="h-[280px] pr-4">
       <div className="space-y-3 pb-4">
         {events.map((event, i) => {
           const cfg = ACTIVITY_ICON_MAP[event.type] ?? { icon: Zap, color: "text-muted-foreground" };
