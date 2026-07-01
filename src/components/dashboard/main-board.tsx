@@ -159,19 +159,29 @@ export function MainBoard() {
       const savedLayouts = await getDashboardLayouts();
 
       if (savedLayouts && savedLayouts.length > 0) {
-        const updatedWidgets = DEFAULT_WIDGETS.map(widget => {
-          const saved = savedLayouts.find((l: WidgetLayout) => l.id === widget.id);
-          if (!saved) return widget;
-          // Migrate old layouts that used position instead of x/y
-          const x = typeof saved.x === "number" ? saved.x : widget.x;
-          const y = typeof saved.y === "number" ? saved.y : widget.y;
-          return { ...widget, x, y, visible: saved.visible };
-        });
-        setWidgets(updatedWidgets);
-        const hidden = savedLayouts
-          .filter((l: WidgetLayout) => !l.visible)
-          .map((l: WidgetLayout) => l.id);
-        setHiddenWidgets(hidden);
+        // Detect old position-based layouts (no x/y) and discard them
+        const hasCoords = savedLayouts.some(
+          (l: any) => typeof l.x === "number" && Number.isFinite(l.x) && typeof l.y === "number" && Number.isFinite(l.y),
+        );
+
+        if (hasCoords) {
+          const updatedWidgets = DEFAULT_WIDGETS.map(widget => {
+            const saved = savedLayouts.find((l: WidgetLayout) => l.id === widget.id);
+            if (!saved) return widget;
+            const x = Number.isFinite(saved.x) ? saved.x : widget.x;
+            const y = Number.isFinite(saved.y) ? saved.y : widget.y;
+            return { ...widget, x, y, visible: saved.visible };
+          });
+          setWidgets(updatedWidgets);
+          const hidden = savedLayouts
+            .filter((l: WidgetLayout) => !l.visible)
+            .map((l: WidgetLayout) => l.id);
+          setHiddenWidgets(hidden);
+        } else {
+          // Old layout format — clear stale localStorage keys
+          localStorage.removeItem("hypercrm_dashboard_layouts");
+          localStorage.removeItem("hypercrm_dashboard_layout");
+        }
       }
 
       setLayoutLoaded(true);
