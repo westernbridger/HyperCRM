@@ -28,6 +28,7 @@ export function WidgetCard({
   onToggleVisibility,
   dragHandleProps,
   isDragging,
+  isOverlay,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -37,12 +38,17 @@ export function WidgetCard({
   onToggleVisibility: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragging?: boolean;
+  isOverlay?: boolean;
 }) {
   return (
-    <motion.div
-      layout
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className={`group relative overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:border-border/80 hover:shadow-md ${isDragging ? "ring-2 ring-amber-500/40 z-50 shadow-xl" : ""} ${className}`}
+    <div
+      className={`group relative overflow-hidden rounded-xl border bg-card transition-all duration-200 ${
+        isOverlay
+          ? "border-amber-500/30 shadow-2xl shadow-black/40 ring-1 ring-amber-500/20"
+          : isDragging
+            ? "border-dashed border-border/40 bg-card/30 opacity-40"
+            : "border-border shadow-sm hover:border-border/80 hover:shadow-md"
+      } ${className}`}
       style={{ minHeight: collapsed ? "52px" : undefined }}
     >
       <CardHeader className={`relative flex flex-row items-center justify-between ${collapsed ? "pb-4" : "pb-2"} cursor-default`}>
@@ -102,6 +108,6 @@ export function WidgetCard({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

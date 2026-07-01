@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Masonry from "react-masonry-css";
 import {
   DndContext,
   closestCenter,
@@ -10,7 +9,6 @@ import {
   useSensor,
   useSensors,
   DragOverlay,
-  defaultDropAnimationSideEffects,
   DragStartEvent,
   DragEndEvent,
 } from "@dnd-kit/core";
@@ -52,14 +50,16 @@ function SortableWidget({
     isDragging,
   } = useSortable({ id: widget.id });
 
-  const style = {
+  // Smooth spring transition for items shifting to make room
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 50 : undefined,
+    transition: isDragging
+      ? undefined
+      : 'transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1)',
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-4">
+    <div ref={setNodeRef} style={style}>
       <WidgetCard
         title={widget.title}
         collapsed={widget.collapsed}
@@ -85,7 +85,7 @@ export function MainBoard() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 10,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -200,7 +200,7 @@ export function MainBoard() {
         </div>
       </div>
 
-      {/* Masonry Grid - Widgets pack tightly into columns */}
+      {/* Widget Grid */}
       {mounted && layoutLoaded ? (
         <DndContext
           sensors={sensors}
@@ -212,11 +212,7 @@ export function MainBoard() {
             items={visibleWidgets.map(w => w.id)}
             strategy={rectSortingStrategy}
           >
-            <Masonry
-              breakpointCols={{ default: 4, 1100: 3, 768: 2, 480: 1 }}
-              className="masonry-grid"
-              columnClassName="masonry-grid-column"
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {visibleWidgets.map((widget) => (
                 <SortableWidget
                   key={widget.id}
@@ -225,30 +221,30 @@ export function MainBoard() {
                   onToggleVisibility={toggleVisibility}
                 />
               ))}
-            </Masonry>
+            </div>
           </SortableContext>
 
-          {/* Drag Overlay for smooth visual feedback */}
+          {/* Drag Overlay — "glass slate" floating effect */}
           <DragOverlay
             dropAnimation={{
-              sideEffects: defaultDropAnimationSideEffects({
-                styles: {
-                  active: {
-                    opacity: "0.5",
-                  },
-                },
-              }),
+              duration: 350,
+              easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
             }}
           >
             {activeWidget ? (
-              <div className={activeWidget.size === "wide" || activeWidget.size === "large" ? "col-span-2" : ""}>
+              <div
+                style={{
+                  transform: 'scale(1.03)',
+                  transformOrigin: 'center center',
+                }}
+                className="rounded-xl"
+              >
                 <WidgetCard
                   title={activeWidget.title}
-                  className="shadow-2xl ring-2 ring-primary/50"
                   collapsed={activeWidget.collapsed}
                   onToggleCollapse={() => {}}
                   onToggleVisibility={() => {}}
-                  isDragging={true}
+                  isOverlay
                 >
                   {renderWidget(activeWidget.type)}
                 </WidgetCard>
@@ -256,29 +252,9 @@ export function MainBoard() {
             ) : null}
           </DragOverlay>
         </DndContext>
-      ) : layoutLoaded ? (
-        /* Static masonry after layout loaded (tab switch) */
-        <Masonry
-          breakpointCols={{ default: 4, 1100: 3, 768: 2, 480: 1 }}
-          className="masonry-grid"
-          columnClassName="masonry-grid-column"
-        >
-          {visibleWidgets.map((widget) => (
-            <div key={widget.id} className="mb-4">
-              <WidgetCard
-                title={widget.title}
-                collapsed={widget.collapsed}
-                onToggleCollapse={() => toggleCollapse(widget.id)}
-                onToggleVisibility={() => toggleVisibility(widget.id)}
-              >
-                {renderWidget(widget.type)}
-              </WidgetCard>
-            </div>
-          ))}
-        </Masonry>
       ) : (
         /* Loading placeholder during SSR and initial load */
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="h-32 rounded-xl border border-border/50 bg-card/50 animate-pulse" />
           ))}
