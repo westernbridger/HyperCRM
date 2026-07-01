@@ -59,7 +59,8 @@ export function BookingPage({ slug }: { slug: string }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   // Client info
-  const [clientName, setClientName] = useState("");
+  const [clientFirstName, setClientFirstName] = useState("");
+  const [clientLastName, setClientLastName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [booking, setBooking] = useState(false);
@@ -135,7 +136,7 @@ export function BookingPage({ slug }: { slug: string }) {
   }, [selectedDate, selectedType, slug]);
 
   async function handleBook() {
-    if (!selectedSlot || !clientName.trim() || !clientEmail.trim() || !selectedType) return;
+    if (!selectedSlot || !clientFirstName.trim() || !clientEmail.trim() || !selectedType) return;
     setBooking(true);
     const slot = slots.find((s) => s.start === selectedSlot);
     if (!slot) {
@@ -145,7 +146,8 @@ export function BookingPage({ slug }: { slug: string }) {
     const { error } = await bookAppointmentByLink(slug, {
       start_time: slot.start,
       end_time: slot.end,
-      client_name: clientName,
+      client_first_name: clientFirstName,
+      client_last_name: clientLastName,
       client_email: clientEmail,
       client_phone: clientPhone || undefined,
       appointment_type_id: selectedType.id,
@@ -203,7 +205,7 @@ export function BookingPage({ slug }: { slug: string }) {
         <div className="text-center">
           <h1 className="text-xl font-bold">Appointment booked!</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {selectedType.name} with {clientName}
+            {selectedType.name} with {clientFirstName} {clientLastName}
           </p>
           <p className="text-sm text-muted-foreground">
             {selectedDate && new Date(selectedSlot!).toLocaleString("en-US", {
@@ -540,19 +542,25 @@ export function BookingPage({ slug }: { slug: string }) {
         {selectedSlot && (
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <h2 className="text-sm font-semibold">Your details</h2>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Name *</Label>
-              <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Your name" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">First Name *</Label>
+                <Input value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="John" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Last Name</Label>
+                <Input value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Doe" />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Email *</Label>
               <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="you@example.com" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Phone (optional)</Label>
+              <Label className="text-xs">Phone</Label>
               <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Your phone number" />
             </div>
-            <Button onClick={handleBook} disabled={booking || !clientName.trim() || !clientEmail.trim()} className="w-full gap-2">
+            <Button onClick={handleBook} disabled={booking || !clientFirstName.trim() || !clientEmail.trim()} className="w-full gap-2">
               {booking && <Loader2 className="h-4 w-4 animate-spin" />}
               Book Appointment
             </Button>

@@ -997,7 +997,8 @@ export async function bookAppointmentByLink(
   input: {
     start_time: string
     end_time: string
-    client_name: string
+    client_first_name: string
+    client_last_name: string
     client_email: string
     client_phone?: string
     appointment_type_id?: string
@@ -1059,20 +1060,102 @@ export async function bookAppointmentByLink(
     return { data: null, error: 'This time slot is no longer available. Please choose another time.' }
   }
 
+  // ── Create or update contact (dedupe by email within workspace) ──────────
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+
+  const clientFullName = `${input.client_first_name} ${input.client_last_name}`.trim()
+
+  // Build custom_fields from booking answers
+  const bookingCustomFields: Record<string, any> = {
+    source: 'Appointment Booking',
+    booking_link_slug: slug,
+  }
+  for (const ans of input.booking_answers ?? []) {
+    if (ans.answer || ans.file_url) {
+      bookingCustomFields[ans.label] = ans.file_url ?? ans.answer
+    }
+  }
+
+  // Check if contact already exists by email
+  const { data: existingContact } = await admin
+    .from('contacts')
+    .select('id, custom_fields')
+    .eq('workspace_id', workspaceId)
+    .eq('email', input.client_email)
+    .maybeSingle<{ id: string; custom_fields: Record<string, any> }>()
+
+  let contactId: string | null = null
+
+  if (existingContact) {
+    // Update existing contact with merged custom_fields
+    const mergedCustomFields = { ...existingContact.custom_fields, ...bookingCustomFields }
+    await admin
+      .from('contacts')
+      // @ts-ignore
+      .update({
+        first_name: input.client_first_name,
+        last_name: input.client_last_name,
+        phone: input.client_phone ?? null,
+        custom_fields: mergedCustomFields,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingContact.id)
+    contactId = existingContact.id
+  } else {
+    // Create new contact as Lead
+    const { data: newContact, error: contactErr } = await admin
+      .from('contacts')
+      .insert({
+        workspace_id: workspaceId,
+        first_name: input.client_first_name,
+        last_name: input.client_last_name,
+        email: input.client_email,
+        phone: input.client_phone ?? null,
+        status: 'Lead',
+        custom_fields: bookingCustomFields,
+      })
+      .select('id')
+      .single<{ id: string }>()
+
+    if (contactErr || !newContact) {
+      console.error('Failed to create contact from booking:', contactErr?.message)
+    } else {
+      contactId = newContact.id
+
+      // Log creation activity
+      await admin.from('activities').insert({
+        contact_id: contactId,
+        workspace_id: workspaceId,
+        type: 'creation',
+        title: 'Lead captured via Appointment Booking',
+        content: `Booked "${apptType.name}" via booking link "${slug}".`,
+        metadata: { source: 'Appointment Booking', booking_link_slug: slug },
+      })
+    }
+  }
+
+  // Auto-create custom field definitions for any new attributes
+  const { ensureFieldDefinitions } = await import('@/lib/data/field-definitions')
+  await ensureFieldDefinitions(workspaceId, bookingCustomFields).catch((e) =>
+    console.error('Field definition auto-creation error (non-fatal):', e)
+  )
+
   const { data, error } = await supabase
     .from('appointments')
     .insert({
       workspace_id: workspaceId,
       appointment_type_id: apptType.id,
       user_id: link.user_id ?? apptType.user_id,
-      title: `${apptType.name} with ${input.client_name}`,
+      contact_id: contactId,
+      title: `${apptType.name} with ${clientFullName}`,
       meeting_type: apptType.meeting_type,
       status: 'confirmed',
       start_time: input.start_time,
       end_time: input.end_time,
       booked_via_link: true,
       booking_link_id: link.id,
-      client_name: input.client_name,
+      client_name: clientFullName,
       client_email: input.client_email,
       client_phone: input.client_phone ?? null,
       booking_answers: input.booking_answers ?? null,
@@ -1107,10 +1190,10 @@ export async function bookAppointmentByLink(
         conn.refresh_token ?? undefined,
         conn.calendar_id ?? 'primary',
         {
-          summary: `${apptType.name} with ${input.client_name}`,
+          summary: `${apptType.name} with ${clientFullName}`,
           start: input.start_time,
           end: input.end_time,
-          attendees: [{ email: input.client_email, name: input.client_name }],
+          attendees: [{ email: input.client_email, name: clientFullName }],
           generateMeet: apptType.meeting_type === 'video',
         }
       )
@@ -1137,7 +1220,7 @@ export async function bookAppointmentByLink(
       const { workspaceName } = await resolveWorkspaceSender(supabase, workspaceId)
       const location = (data as any).meeting_url || (data as any).location || (data as any).phone_number || ''
       const ctx = buildAppointmentEmailContext(
-        input.client_name,
+        clientFullName,
         input.client_email,
         apptType,
         input.start_time,

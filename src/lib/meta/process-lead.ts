@@ -5,6 +5,7 @@
 // handlers) and keeps the logic unit-testable.
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureFieldDefinitions } from "@/lib/data/field-definitions";
 
 const GRAPH_API_VERSION = "v19.0";
 const MAX_RETRY_ATTEMPTS = 6;
@@ -171,6 +172,12 @@ export async function processMetaLead(leadgenId: string, pageId?: string): Promi
   });
 
   console.log(`[Meta Webhook] ✓ Contact created id=${contact.id} leadgen_id=${leadgenId}`);
+
+  // Auto-create custom field definitions for any new attributes
+  await ensureFieldDefinitions(integration.workspace_id, custom_fields).catch((e) =>
+    console.error('[Meta Webhook] Field definition error (non-fatal):', e)
+  );
+
   return { ok: true };
 }
 

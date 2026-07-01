@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ensureFieldDefinitions } from '@/lib/data/field-definitions'
 import { revalidatePath } from 'next/cache'
 import type {
   HyperFormField,
@@ -318,6 +319,11 @@ export async function submitHyperForm(
   }
 
   // 4. Create the submission record
+  // Auto-create custom field definitions for any new attributes
+  await ensureFieldDefinitions(form.workspace_id, custom_fields).catch((e) =>
+    console.error('HyperForm field definition error (non-fatal):', e)
+  )
+
   const { data: submission, error: subErr } = await admin
     .from('hyperform_submissions')
     .insert({

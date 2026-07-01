@@ -1364,6 +1364,36 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_field_definitions: {
+        Row: {
+          id: string
+          workspace_id: string
+          key: string
+          label: string
+          type: string
+          options: string[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          key: string
+          label?: string
+          type?: string
+          options?: string[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          key?: string
+          label?: string
+          type?: string
+          options?: string[]
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
