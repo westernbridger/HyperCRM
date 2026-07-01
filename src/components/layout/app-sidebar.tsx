@@ -19,6 +19,7 @@ import {
   Settings,
   Loader2,
   Calendar,
+  BarChart3,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -44,6 +45,7 @@ const navItems = [
   { label: "Documents", href: "/documents", icon: FileText },
   { label: "Appointments", href: "/appointments", icon: Calendar },
   { label: "Automation", href: "/automation", icon: Workflow },
+  { label: "Analytics", href: "/analytics", icon: BarChart3 },
   { label: "Team", href: "/team", icon: Shield },
 ];
 
