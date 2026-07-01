@@ -22,7 +22,7 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, LayoutGrid, Eye } from "lucide-react";
+import { GripVertical, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   getDashboardLayouts,
@@ -185,21 +185,17 @@ export function MainBoard() {
   return (
     <div className="space-y-4">
       {/* Dashboard Controls */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-border/50 pb-3">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <LayoutGrid className="h-4 w-4" />
-            <span>Snap Grid Layout</span>
-          </div>
           {hiddenWidgets.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={showAllWidgets} className="gap-2">
-              <Eye className="h-4 w-4" />
-              Show Hidden ({hiddenWidgets.length})
+            <Button variant="ghost" size="sm" onClick={showAllWidgets} className="gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+              <Eye className="h-3.5 w-3.5" />
+              Show {hiddenWidgets.length} hidden
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <GripVertical className="h-4 w-4" />
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+          <GripVertical className="h-3.5 w-3.5" />
           <span>Drag to reorder</span>
         </div>
       </div>
@@ -284,7 +280,7 @@ export function MainBoard() {
         /* Loading placeholder during SSR and initial load */
         <div className="grid grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-32 rounded-xl bg-muted/50 animate-pulse" />
+            <div key={i} className="h-32 rounded-xl border border-border/50 bg-card/50 animate-pulse" />
           ))}
         </div>
       )}

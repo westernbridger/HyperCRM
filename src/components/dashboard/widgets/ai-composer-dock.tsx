@@ -24,7 +24,7 @@ export function AIComposerDock() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Sparkles className="h-5 w-5 text-purple-400" />
+        <Sparkles className="h-4 w-4 text-muted-foreground/60" />
         <span className="text-sm font-medium">AI Email Composer</span>
       </div>
 
@@ -62,7 +62,7 @@ export function AIComposerDock() {
           <Button
             onClick={handleGenerate}
             disabled={!prompt.trim() || isGenerating}
-            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+            className="w-full"
           >
             {isGenerating ? (
               <>

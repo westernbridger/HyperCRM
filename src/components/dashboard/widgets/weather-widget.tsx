@@ -9,13 +9,13 @@ export function WeatherWidget() {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/40 text-amber-400">Demo data</Badge>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-border text-muted-foreground">Demo data</Badge>
       </div>
       {/* Current Weather */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="rounded-full bg-gradient-to-br from-amber-400 to-orange-500 p-2">
-            <Sun className="h-5 w-5 text-white" />
+          <div className="rounded-full bg-muted/60 p-2">
+            <Sun className="h-5 w-5 text-amber-400/80" />
           </div>
           <div>
             <p className="text-2xl font-bold">{weatherData.temp}°</p>

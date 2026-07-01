@@ -14,11 +14,13 @@ export function TotalContactsWidget() {
         {total === null ? (
           <div className="h-8 w-16 animate-pulse rounded bg-muted" />
         ) : (
-          <p className="text-2xl font-bold">{total.toLocaleString()}</p>
+          <p className="text-2xl font-bold tracking-tight">{total.toLocaleString()}</p>
         )}
         <p className="text-xs text-muted-foreground mt-1">Total contacts</p>
       </div>
-      <Users className="h-7 w-7 text-muted-foreground/30" />
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/40">
+        <Users className="h-5 w-5 text-muted-foreground/50" />
+      </div>
     </div>
   );
 }
@@ -39,11 +41,13 @@ export function ConversionRateWidget() {
         {rate === null ? (
           <div className="h-8 w-16 animate-pulse rounded bg-muted" />
         ) : (
-          <p className="text-2xl font-bold">{rate}%</p>
+          <p className="text-2xl font-bold tracking-tight">{rate}%</p>
         )}
         <p className="text-xs text-muted-foreground mt-1">Leads → Customers</p>
       </div>
-      <Activity className="h-7 w-7 text-muted-foreground/30" />
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/40">
+        <Activity className="h-5 w-5 text-muted-foreground/50" />
+      </div>
     </div>
   );
 }

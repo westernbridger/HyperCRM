@@ -9,10 +9,10 @@ export function MetaAdsMonitor() {
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-blue-500" />
+          <Globe className="h-4 w-4 text-muted-foreground/60" />
           <span className="text-sm font-medium">Meta Integration</span>
         </div>
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/40 text-amber-400">Not connected</Badge>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-border text-muted-foreground">Not connected</Badge>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -29,10 +29,10 @@ export function MetaAdsMonitor() {
       <div className="space-y-1">
         <div className="flex items-center justify-between rounded-lg bg-muted/50 p-1.5">
           <div className="flex items-center gap-2">
-            <Webhook className="h-3.5 w-3.5 text-emerald-400" />
+            <Webhook className="h-3.5 w-3.5 text-emerald-400/70" />
             <span className="text-xs">Live Webhook</span>
           </div>
-          <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px] px-1 py-0">
+          <Badge className="bg-emerald-500/10 text-emerald-400/80 text-[10px] px-1 py-0 border-0">
             <span className="mr-1 inline-block h-1 w-1 animate-pulse rounded-full bg-emerald-400" />
             Operational
           </Badge>
@@ -40,7 +40,7 @@ export function MetaAdsMonitor() {
 
         <div className="flex items-center justify-between rounded-lg bg-muted/50 p-1.5">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground/60" />
             <span className="text-xs">Lead Sync</span>
           </div>
           <Badge variant="secondary" className="text-[10px] px-1 py-0">Active</Badge>
@@ -48,7 +48,7 @@ export function MetaAdsMonitor() {
 
         <div className="flex items-center justify-between rounded-lg bg-muted/50 p-1.5">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-3.5 w-3.5 text-amber-400" />
+            <BarChart3 className="h-3.5 w-3.5 text-muted-foreground/60" />
             <span className="text-xs">Attribution</span>
           </div>
           <Badge variant="secondary" className="text-[10px] px-1 py-0">Tracking</Badge>

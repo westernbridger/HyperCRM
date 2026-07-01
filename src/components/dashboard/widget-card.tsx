@@ -42,22 +42,17 @@ export function WidgetCard({
     <motion.div
       layout
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className={`group relative overflow-hidden rounded-xl border border-border bg-card shadow-sm ${isDragging ? "ring-2 ring-primary/50 z-50 shadow-xl" : ""} ${className}`}
+      className={`group relative overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:border-border/80 hover:shadow-md ${isDragging ? "ring-2 ring-amber-500/40 z-50 shadow-xl" : ""} ${className}`}
       style={{ minHeight: collapsed ? "52px" : undefined }}
     >
-      {/* Animated gradient border on hover */}
-      <div className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-blue-500/20 to-purple-500/20" />
-      </div>
-
       <CardHeader className={`relative flex flex-row items-center justify-between ${collapsed ? "pb-4" : "pb-2"} cursor-default`}>
         <div className="flex items-center gap-2">
           {/* Drag Handle */}
           <div
             {...dragHandleProps}
-            className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted/50 transition-colors"
+            className="cursor-grab active:cursor-grabbing p-1 rounded transition-colors"
           >
-            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+            <GripVertical className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
           </div>
           <CardTitle className="text-sm font-medium text-muted-foreground">
             {title}
@@ -68,14 +63,14 @@ export function WidgetCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0"
+            className="h-7 w-7 p-0 text-muted-foreground/50 hover:text-muted-foreground"
             onClick={onToggleCollapse}
           >
             {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </Button>
 
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+            <DropdownMenuTrigger className="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground/50 hover:text-muted-foreground">
               <MoreHorizontal className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

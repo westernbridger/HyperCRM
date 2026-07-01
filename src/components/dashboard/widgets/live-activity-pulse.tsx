@@ -54,7 +54,7 @@ export function LiveActivityPulse() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
               onClick={() => router.push(`/contacts/${event.contact_id}`)}
-              className="flex items-start gap-3 rounded-lg bg-muted/50 p-3 transition-colors hover:bg-muted cursor-pointer group"
+              className="flex items-start gap-3 rounded-lg border border-border/50 bg-secondary/20 p-3 transition-colors hover:bg-secondary/40 hover:border-border cursor-pointer group"
             >
               <div className={`mt-0.5 shrink-0 ${cfg.color}`}>
                 <Icon className="h-4 w-4" />

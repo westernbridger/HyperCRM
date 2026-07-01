@@ -32,17 +32,17 @@ export function LeadIngestionVelocity() {
             <AreaChart data={leadData}>
               <defs>
                 <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-              <XAxis dataKey="day" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} />
-              <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="day" stroke="rgba(255,255,255,0.4)" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="rgba(255,255,255,0.4)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip
-                contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}
+                contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
               />
-              <Area type="monotone" dataKey="leads" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorLeads)" />
+              <Area type="monotone" dataKey="leads" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorLeads)" />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -56,7 +56,7 @@ export function LeadIngestionVelocity() {
           )}
           <p className="text-xs text-muted-foreground">New contacts this week</p>
         </div>
-        <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400">
+        <Badge variant="secondary" className="bg-amber-500/10 text-amber-400 border-amber-500/20">
           Last 7 days
         </Badge>
       </div>
