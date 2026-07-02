@@ -12,9 +12,11 @@ import {
   getContactActivities as getContactActivitiesAction,
   addActivity as addActivityAction,
   getDashboardStats as getDashboardStatsAction,
+  getCustomFieldDefinitions as getCustomFieldDefinitionsAction,
   type Contact as DbContact,
   type Activity,
   type CreateContactInput,
+  type CustomFieldDefinition,
 } from "@/app/actions/contacts";
 
 // Local storage keys (for fallback)
@@ -475,4 +477,14 @@ export async function getDashboardStats(): Promise<{
     customersCount: contacts.filter((c) => c.status === "Customer").length,
     recentContacts: contacts.slice(0, 5),
   };
+}
+
+// ===== GET CUSTOM FIELD DEFINITIONS =====
+export async function getCustomFieldDefinitions(): Promise<CustomFieldDefinition[]> {
+  if (await isAuthenticated()) {
+    const { data, error } = await getCustomFieldDefinitionsAction();
+    if (error || !data) return [];
+    return data;
+  }
+  return [];
 }

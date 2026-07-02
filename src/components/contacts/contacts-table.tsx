@@ -13,6 +13,7 @@ import {
   bulkDeleteContacts,
   bulkUpdateStatus,
   batchImportContacts,
+  getCustomFieldDefinitions,
   type UiContact,
 } from "@/lib/data/contacts";
 import { useToast } from "@/hooks/use-toast";
@@ -207,6 +208,23 @@ export function ContactsTable() {
       try {
         const data = await getContacts();
         setContacts((data && data.length > 0 ? data : initialContacts) as Contact[]);
+
+        // Merge DB field definitions with localStorage ones
+        const dbFields = await getCustomFieldDefinitions();
+        if (dbFields.length > 0) {
+          setFieldDefinitions((prev) => {
+            const existingIds = new Set(prev.map((f) => f.id));
+            const dbMapped: FieldDefinition[] = dbFields.map((f) => ({
+              id: f.key,
+              name: f.label,
+              type: (f.type as FieldType) || "text",
+              required: false,
+              options: f.options?.length ? f.options : undefined,
+            }));
+            const newOnes = dbMapped.filter((f) => !existingIds.has(f.id));
+            return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          });
+        }
       } catch (err) {
         console.error("Error loading contacts:", err);
         setLoadError("Failed to load contacts.");

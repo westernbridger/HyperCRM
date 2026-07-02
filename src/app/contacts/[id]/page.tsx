@@ -18,6 +18,7 @@ import {
   deleteContact,
   addActivity,
   updateContact,
+  getCustomFieldDefinitions,
 } from "@/lib/data/contacts";
 import { ComposeEmailDialog } from "@/components/communications/compose-email-dialog";
 
@@ -126,6 +127,23 @@ export default function ContactDetailPage() {
       try {
         const id = (Array.isArray(params.id) ? params.id[0] : params.id) ?? "";
         if (!id) { router.push("/contacts"); return; }
+
+        // Merge DB field definitions (from server-side auto-creation)
+        const dbFields = await getCustomFieldDefinitions();
+        if (dbFields.length > 0) {
+          setFieldDefinitions((prev) => {
+            const existingIds = new Set(prev.map((f) => f.id));
+            const dbMapped: FieldDefinition[] = dbFields.map((f) => ({
+              id: f.key,
+              name: f.label,
+              type: (f.type as FieldDefinition["type"]) || "text",
+              required: false,
+              options: f.options?.length ? f.options : undefined,
+            }));
+            const newOnes = dbMapped.filter((f) => !existingIds.has(f.id));
+            return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          });
+        }
 
         // Load contact from unified layer (Supabase or localStorage)
         const found = await getContactById(id);

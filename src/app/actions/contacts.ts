@@ -676,3 +676,40 @@ export async function getDashboardStats(): Promise<{
     }
   }
 }
+
+// ── Custom Field Definitions ─────────────────────────────────────────────────
+
+export type CustomFieldDefinition = {
+  id: string
+  key: string
+  label: string
+  type: string
+  options: string[]
+}
+
+export async function getCustomFieldDefinitions(): Promise<{
+  data: CustomFieldDefinition[] | null
+  error: string | null
+}> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const workspaceId = user.user_metadata?.current_workspace_id as string | undefined
+    if (!workspaceId) return { data: null, error: 'No workspace selected' }
+
+    const { data, error } = await supabase
+      .from('custom_field_definitions')
+      .select('id, key, label, type, options')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: true })
+
+    if (error) return { data: null, error: error.message }
+
+    return { data: data as CustomFieldDefinition[], error: null }
+  } catch (err) {
+    console.error('Error fetching field definitions:', err)
+    return { data: null, error: 'Failed to fetch field definitions' }
+  }
+}
